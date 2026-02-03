@@ -1,0 +1,69 @@
+/*REXX*/                                                                        
+/*---------------------------------------*/                                     
+/* CATS LEADCARD UPDATE DIALOG           */                                     
+/*---------------------------------------*/                                     
+/*---------------------------------------*/                                     
+/*  NEW LINE TO ALLOW A MENU SELECTION   */                                     
+/*  PARM AND TO ALLOW THE RUN DATE TO    */                                     
+/*  BE OVERRIDEN WHEN RUNNING THIS DIALOG*/                                     
+/*  IN BACK.                             */                                     
+/*  OVERRIDE DATE FORMAT IS YYYYMMDD     */                                     
+/*  IF A DATE OVERRIDE EXISTS USE IT ELSE*/                                     
+/*  USE THE CURRENT SYSTEM DATE.         */                                     
+/*---------------------------------------*/                                     
+ADDRESS "TSO"                                                                   
+ARG INENVIR INCOMP INSEL OVRDATE;                                               
+/*---------------------------------------*/                                     
+/* PART 1: INITIALIZATION                */                                     
+/*---------------------------------------*/                                     
+IF OVRDATE = "" THEN PDATE = DATE("N")                                          
+ELSE PDATE = DATE("N",OVRDATE,"S");                                             
+                                                                                
+CURRDD  =  SUBSTR(DATE("S",PDATE,"N"),7,2)                                      
+MM      =  SUBSTR(DATE("O",PDATE,"N"),4,2)                                      
+CURRMMM =  SUBSTR(DATE("M",PDATE,"N"),1,3)                                      
+UPPER CURRMMM                                                                   
+CURRYYYY = SUBSTR(DATE("S",PDATE,"N"),1,4)                                      
+WKDY =     DATE("B",PDATE,"N")//7                                               
+CURRWKDY = DATE("W",PDATE,"N")                                                  
+UPPER CURRWKDY                                                                  
+/*----------------------------------------*/                                    
+/* PART 2: DETERMINE DEFAULT OPTION       */                                    
+/*----------------------------------------*/                                    
+/*                                        */                                    
+/* SUGGEST AN OPTION                      */                                    
+/*                                        */                                    
+COMPANY = ZI                                                                    
+ENVIR   = P                                                                     
+PANSEL  = 2                                                                     
+TAPDSN  = "PCL.LEADCARD.DATA"                                                   
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/*      DIALOG IS RUNNING IN BATCH        */                                    
+/*      MODE IF INSEL IS PRESENT.         */                                    
+/*                                        */                                    
+/*      BATCH INDICATOR USED TO FORCE     */                                    
+/*      REQUEST LEADCARDS TO BE UPDATED   */                                    
+/*      AS PART OF THE DAILY LEADCARDS    */                                    
+/*      FOR BATCH EXECUTION ONLY.         */                                    
+/*----------------------------------------*/                                    
+/*                                        */                                    
+IF INENVIR <> "" THEN ENVIR = INENVIR;                                          
+IF INCOMP  <> "" THEN COMPANY = INCOMP;                                         
+                                                                                
+BATCH = "N"                                                                     
+/*                                        */                                    
+IF INSEL <> "" THEN DO                                                          
+   PANSEL = INSEL                                                               
+   BATCH = "Y"                                                                  
+END                                                                             
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/* PART 3: SELECT MAIN MENU PANEL         */                                    
+/*----------------------------------------*/                                    
+"ISPEXEC VPUT (CURRWKDY CURRDD CURRMMM CURRYYYY",                               
+  "COMPANY ENVIR PANSEL WKDY TAPDSN BATCH)"                                     
+"ISPEXEC SELECT PANEL(TAPPMENU)"                                                
+SIGNAL "EXIT"                                                                   
+EXIT:                                                                           
+EXIT                                                                            

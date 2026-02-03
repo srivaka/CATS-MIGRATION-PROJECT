@@ -1,0 +1,547 @@
+/*REXX*/                                                                        
+ADDRESS "ISPEXEC"                                                               
+"CONTROL ERRORS RETURN"                                                         
+/*---------------------------------------*/                                     
+/* PART 1: INITIALIZATION                */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+/* GET GLOBALS                           */                                     
+/*                                       */                                     
+"VGET (CURRWKDY CURRDD CURRMMM CURRYYYY PANSEL COMPANY",                        
+      "ENVIR WKDY TAPDSN ZPREFIX BATCH)"                                        
+/*                                       */                                     
+/* DETERMINE OUTPUT LEADCARD FILE        */                                     
+/*                                       */                                     
+SELECT                                                                          
+  WHEN COMPANY = "ZI" THEN                                                      
+       SELECT                                                                   
+         WHEN ENVIR = "P" THEN                                                  
+              TAPDSN  = "PCL.LEADCARD.DATA"                                     
+         OTHERWISE                                                              
+              TAPDSN = ZPREFIX||"."||COMPANY||".LEADCARD.DATA"                  
+       END                                                                      
+  OTHERWISE                                                                     
+       TAPDSN = ZPREFIX||"."||COMPANY||".LEADCARD.DATA"                         
+END                                                                             
+/*                                       */                                     
+/* SET UP TABLE OF MAX DAYS PER MONTH    */                                     
+/*                                       */                                     
+MAXDAYS = "312831303130313130313031"                                            
+/*                                       */                                     
+/* CAPS-I-L DOES NOT SUPPORT LEAP YEARS  */                                     
+DO I = 1 TO 12                                                                  
+   PARSE VAR MAXDAYS MAXDAY.I 3 MAXDAYS                                         
+END                                                                             
+/*                                       */                                     
+/* SET UP ALPHA MONTH TABLE              */                                     
+/*                                       */                                     
+MTHSALPHA = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC"                              
+DO I = 1 TO 12                                                                  
+   MTHALPHA.I = SUBSTR(MTHSALPHA,(I - 1) * 3 + 1,3)                             
+END                                                                             
+/*                                       */                                     
+/* SET THE OUTPUT DATASET                */                                     
+/*                                       */                                     
+/*                                       */                                     
+/* RECALC WKDY IN CASE IT WAS CHANGED    */                                     
+/*                                       */                                     
+SELECT                                                                          
+  WHEN CURRWKDY = 'MON' THEN WKDY = 0                                           
+  WHEN CURRWKDY = 'TUE' THEN WKDY = 1                                           
+  WHEN CURRWKDY = 'WED' THEN WKDY = 2                                           
+  WHEN CURRWKDY = 'THU' THEN WKDY = 3                                           
+  WHEN CURRWKDY = 'FRI' THEN WKDY = 4                                           
+  WHEN CURRWKDY = 'SAT' THEN WKDY = 5                                           
+  WHEN CURRWKDY = 'SUN' THEN WKDY = 6                                           
+  OTHERWISE NOP                                                                 
+END                                                                             
+/*                                       */                                     
+"VPUT (TAPDSN ENVIR WKDY)"                                                      
+/*                                       */                                     
+ADDRESS "TSO"                                                                   
+/*                                       */                                     
+/* ENSURE LEADCARD DATASET EXISTS        */                                     
+/*                                       */                                     
+DSN_STATUS = SYSDSN("'"TAPDSN"'")                                               
+IF  DSN_STATUS ^= 'OK' THEN DO                                                  
+      FC = LISTDSI("'"TAPDSN"'")                                                
+      IF FC ^= 0  THEN DO                                                       
+          ADDRESS ISPEXEC "SETMSG MSG(TAPM028)"                                 
+          SAY TAPDSN || " DOES NOT EXIST"                                       
+          SIGNAL "EXIT"                                                         
+      END                                                                       
+END                                                                             
+/*                                       */                                     
+/* ENSURE ALL REQUIRED LEADCARDS EXIST   */                                     
+/*                                       */                                     
+TESTMEM = TAPDSN || "(HOLIDAYS)"                                                
+DSN_STATUS = SYSDSN("'"TESTMEM"'")                                              
+IF  DSN_STATUS ^= 'OK' THEN DO                                                  
+    ADDRESS ISPEXEC "SETMSG MSG(TAPM030)"                                       
+    SIGNAL "EXIT"                                                               
+END                                                                             
+/*                                       */                                     
+TESTMEM = TAPDSN || "(CIPA0990)"                                                
+DSN_STATUS = SYSDSN("'"TESTMEM"'")                                              
+IF  DSN_STATUS ^= 'OK' THEN DO                                                  
+    ADDRESS ISPEXEC "SETMSG MSG(TAPM031)"                                       
+    SIGNAL "EXIT"                                                               
+END                                                                             
+/*                                       */                                     
+TESTMEM = TAPDSN || "(CIPA1400)"                                                
+DSN_STATUS = SYSDSN("'"TESTMEM"'")                                              
+IF  DSN_STATUS ^= 'OK' THEN DO                                                  
+    ADDRESS ISPEXEC "SETMSG MSG(TAPM032)"                                       
+    SIGNAL "EXIT"                                                               
+END                                                                             
+/*                                       */                                     
+TESTMEM = TAPDSN || "(CIPA1450)"                                                
+DSN_STATUS = SYSDSN("'"TESTMEM"'")                                              
+IF  DSN_STATUS ^= 'OK' THEN DO                                                  
+    ADDRESS ISPEXEC "SETMSG MSG(TAPM033)"                                       
+    SIGNAL "EXIT"                                                               
+END                                                                             
+/*                                       */                                     
+ADDRESS "ISPEXEC"                                                               
+/*                                       */                                     
+/* SET UP THE HOLIDAY TABLE              */                                     
+/*                                       */                                     
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(HOLIDAYS)') SHR REUSE"        
+/*                                       */                                     
+/*    CHECK USER HAS UPATE AUTHORITY     */                                     
+/*                                       */                                     
+ADDRESS TSO "EXECIO 0 DISKRU PARMIN (OPEN"                                      
+/*                                       */                                     
+IF RC ^= 0  THEN DO                                                             
+   ISPEXEC "SETMSG MSG(TAPM029)"                                                
+   SIGNAL "EXIT"                                                                
+END                                                                             
+/*                                       */                                     
+ADDRESS TSO "EXECIO * DISKR  PARMIN (FINIS STEM INLINE."                        
+J = 0                                                                           
+HOLI_YR = '9999'                                 /* NOT END OF TABLE */         
+DO I = 6 TO 35                                                                  
+   IF HOLI_YR = '0000' THEN NOP                  /* END OF TABLE */             
+   ELSE DO                                                                      
+      J = J + 1                                                                 
+      PARSE VAR INLINE.I 1 HOLI_YR.J +4                                         
+      PARSE VAR INLINE.I 6 HOLI_MO.J +2                                         
+      PARSE VAR INLINE.I 9 HOLI_DY.J +2                                         
+   END                                                                          
+END                                                                             
+HOLI_MAX = J                                                                    
+ADDRESS TSO "FREE FILE(PARMIN)"                                                 
+/*                                       */                                     
+/* GET THE LAST RUN DATES AND SAVE ORIG  */                                     
+/*                                       */                                     
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(CIPA0990)') SHR REUSE"        
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                         
+PARSE VAR INLINE.3 22 NSTRDD_ORIG   +2                                          
+PARSE VAR INLINE.3 24 NSTRMMM_ORIG  +3                                          
+PARSE VAR INLINE.3 27 NSTRYYYY_ORIG +4                                          
+PARSE VAR INLINE.4 22 NSTRDD   +2                                               
+PARSE VAR INLINE.4 24 NSTRMMM  +3                                               
+PARSE VAR INLINE.4 27 NSTRYYYY +4                                               
+ADDRESS TSO "FREE FILE(PARMIN)"                                                 
+/*                                       */                                     
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(CIPA1400)') SHR REUSE"        
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                         
+PARSE VAR INLINE.3 22 NLSTDD_ORIG   +2                                          
+PARSE VAR INLINE.3 24 NLSTMMM_ORIG  +3                                          
+PARSE VAR INLINE.3 27 NLSTYYYY_ORIG +4                                          
+PARSE VAR INLINE.4 22 NLSTDD   +2                                               
+PARSE VAR INLINE.4 24 NLSTMMM  +3                                               
+PARSE VAR INLINE.4 27 NLSTYYYY +4                                               
+ADDRESS TSO "FREE FILE(PARMIN)"                                                 
+/*                                       */                                     
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(CIPA1450)') SHR REUSE"        
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                         
+PARSE VAR INLINE.3 22 NCFSDD_ORIG  +2                                           
+PARSE VAR INLINE.3 24 NCFSMMM_ORIG +3                                           
+PARSE VAR INLINE.3 27 NCFSYYYY_ORIG +4                                          
+PARSE VAR INLINE.4 22 NCFSDD   +2                                               
+PARSE VAR INLINE.4 24 NCFSMMM  +3                                               
+PARSE VAR INLINE.4 27 NCFSYYYY +4                                               
+ADDRESS TSO "FREE FILE(PARMIN)"                                                 
+/*                                       */                                     
+/* DEFAULT THE DATE FIELDS               */                                     
+/*                                       */                                     
+NRUNDD    = CURRDD        /* RUN DATE    */                                     
+NRUNMMM   = CURRMMM                                                             
+NRUNYYYY  = CURRYYYY                                                            
+/*                                       */                                     
+NAUTDD    = CURRDD        /* AUTO DATE   */                                     
+NAUTMMM   = CURRMMM                                                             
+NAUTYYYY  = CURRYYYY                                                            
+/*                                       */                                     
+/* LAST AUTO DATE - IF CURR AUTO DATE =  */                                     
+/* LAST AUTO DATE, THEN RETAIN ORIG AUTO */                                     
+/* DATE                                  */                                     
+/*                                       */                                     
+IF NLSTDD = NAUTDD & NLSTMMM = NAUTMMM & NLSTYYYY = NAUTYYYY THEN DO            
+   NLSTDD    = NLSTDD_ORIG                                                      
+   NLSTMMM   = NLSTMMM_ORIG                                                     
+   NLSTYYYY  = NLSTYYYY_ORIG                                                    
+END                                                                             
+/*                                       */                                     
+NFUPDD    = CURRDD        /* FOLLOW-UP   */                                     
+NFUPMMM   = CURRMMM                                                             
+NFUPYYYY  = CURRYYYY                                                            
+/*                                       */                                     
+/* PRTX START DATE - IF START DATE =     */                                     
+/* CURRENT DATE, THEN RETAIN START DATE  */                                     
+/* ELSE SET IT TO PREV DATE + 1 DAY      */                                     
+/*                                       */                                     
+IF NSTRDD = CURRDD & NSTRMMM = CURRMMM & NSTRYYYY = CURRYYYY                    
+THEN DO                                                                         
+   NSTRDD    = NSTRDD_ORIG                                                      
+   NSTRMMM   = NSTRMMM_ORIG                                                     
+   NSTRYYYY  = NSTRYYYY_ORIG                                                    
+END                                                                             
+ELSE DO                                                                         
+   NSTRMM    = (POS(NSTRMMM,MTHSALPHA) - 1) / 3 + 1                             
+   NSTRDD = NSTRDD + 1                                                          
+   IF NSTRDD > MAXDAY.NSTRMM THEN DO                                            
+      NSTRDD    = NSTRDD - MAXDAY.NSTRMM                                        
+      NSTRMM    = NSTRMM  + 1                                                   
+      IF NSTRMM  > 12 THEN DO                                                   
+         NSTRMM    = 1                                                          
+         NSTRYYYY  = NSTRYYYY + 1                                               
+      END                                                                       
+      NSTRMMM   = MTHALPHA.NSTRMM                                               
+   END                                                                          
+END                                                                             
+/*                                       */                                     
+NENDDD    = CURRDD        /* END DATE    */                                     
+NENDMMM   = CURRMMM                                                             
+NENDYYYY  = CURRYYYY                                                            
+/*                                       */                                     
+/* CLI F-U END DATE - SET TO THE NEXT    */                                     
+/* WORKING DAY                           */                                     
+/*                                       */                                     
+WORKDD    = CURRDD                                                              
+WORKMMM   = CURRMMM                                                             
+WORKYYYY  = CURRYYYY                                                            
+WORKWKDY  = WKDY                                                                
+CALL NEXT_WORKDAY                                                               
+NCFEDD    = WORKDD                                                              
+NCFEMMM   = WORKMMM                                                             
+NCFEYYYY  = WORKYYYY                                                            
+/*                                       */                                     
+/* CLI F-U START DATE - IF START DATE =  */                                     
+/* CLI F-U END,  THEN RETAIN START DATE  */                                     
+/* ELSE SET IT TO PREV DATE + 1 DAY      */                                     
+/*                                       */                                     
+IF NCFSDD = NCFEDD & NCFSMMM = NCFEMMM & NCFSYYYY = NCFEYYYY                    
+THEN DO                                                                         
+   NCFSDD    = NCFSDD_ORIG                                                      
+   NCFSMMM   = NCFSMMM_ORIG                                                     
+   NCFSYYYY  = NCFSYYYY_ORIG                                                    
+END                                                                             
+ELSE DO                                                                         
+   NCFSMM    = (POS(NCFSMMM,MTHSALPHA) - 1) / 3 + 1                             
+   NCFSDD = NCFSDD + 1                                                          
+   IF NCFSDD > MAXDAY.NCFSMM THEN DO                                            
+      NCFSDD    = NCFSDD - MAXDAY.NCFSMM                                        
+      NCFSMM    = NCFSMM  + 1                                                   
+      IF NCFSMM  > 12 THEN DO                                                   
+         NCFSMM    = 1                                                          
+         NCFSYYYY  = NCFSYYYY + 1                                               
+      END                                                                       
+      NCFSMMM   = MTHALPHA.NCFSMM                                               
+   END                                                                          
+END                                                                             
+/*                                       */                                     
+/* NBS PERIODS ARE RUN WEEKLY. SET LOW   */                                     
+/* DATE TO CURRENT DATE LESS 6 DAYS.     */                                     
+/*                                       */                                     
+IF CURRDD > 6 THEN DO     /* NB LOW DATE */                                     
+   NNBLDD    = CURRDD - 6                                                       
+   NNBLMMM   = CURRMMM                                                          
+   NNBLYYYY  = CURRYYYY                                                         
+END                                                                             
+ELSE DO                                                                         
+   NNBLYYYY  = CURRYYYY                                                         
+   CURRMM = (POS(CURRMMM,MTHSALPHA) - 1) / 3 + 1                                
+   CURRMM = CURRMM - 1                                                          
+   IF CURRMM = 0 THEN DO                                                        
+      CURRMM = 12                                                               
+      NNBLYYYY = NNBLYYYY - 1                                                   
+   END                                                                          
+   NNBLDD = CURRDD + MAXDAY.CURRMM - 6                                          
+   NNBLMMM = MTHALPHA.CURRMM                                                    
+END                                                                             
+/*                                       */                                     
+NNBHDD    = CURRDD        /* NB HIGH DT  */                                     
+NNBHMMM   = CURRMMM                                                             
+NNBHYYYY  = CURRYYYY                                                            
+/*                                       */                                     
+NITLDD    = NNBLDD        /* ISS TIME LO */                                     
+NITLMMM   = NNBLMMM                                                             
+NITLYYYY  = NNBLYYYY                                                            
+/*                                       */                                     
+NITHDD    = CURRDD        /* ISS TIME HI */                                     
+NITHMMM   = CURRMMM                                                             
+NITHYYYY  = CURRYYYY                                                            
+/*                                       */                                     
+NDRLDD    = NNBLDD        /* DLY RECV LO */                                     
+NDRLMMM   = NNBLMMM                                                             
+NDRLYYYY  = NNBLYYYY                                                            
+/*                                       */                                     
+NDRHDD    = CURRDD        /* DLY RECV HI */                                     
+NDRHMMM   = CURRMMM                                                             
+NDRHYYYY  = CURRYYYY                                                            
+/*---------------------------------------*/                                     
+/* PART 2: BRING UP THE DAILY PANEL      */                                     
+/*---------------------------------------*/                                     
+CRSRFLD = "NRUNDD"                                                              
+REDISPLAY:                                                                      
+"DISPLAY PANEL(TAPPNBS)"                                                        
+IF RC ^= 0 THEN DO                                                              
+   "SETMSG MSG(TAPM006)"                                                        
+   SIGNAL "EXIT"                                                                
+END                                                                             
+/*----------------------------------------*/                                    
+/* PART 3: EDITING NOT DONE IN PANEL      */                                    
+/*----------------------------------------*/                                    
+/*                                        */                                    
+/* DAY OF THE MONTH                       */                                    
+/*                                        */                                    
+NRUNMM = (POS(NRUNMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NRUNDD > MAXDAY.NRUNMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NRUNDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NAUTMM = (POS(NAUTMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NAUTDD > MAXDAY.NAUTMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NAUTDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NLSTMM = (POS(NLSTMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NLSTDD > MAXDAY.NLSTMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NLSTDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NFUPMM = (POS(NFUPMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NFUPDD > MAXDAY.NFUPMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NFUPDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NSTRMM = (POS(NSTRMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NSTRDD > MAXDAY.NSTRMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NSTRDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NENDMM = (POS(NENDMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NENDDD > MAXDAY.NENDMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NENDDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NCFSMM = (POS(NCFSMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NCFSDD > MAXDAY.NCFSMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NCFSDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NCFEMM = (POS(NCFEMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NCFEDD > MAXDAY.NCFEMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NCFEDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NNBLMM = (POS(NNBLMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NNBLDD > MAXDAY.NNBLMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NNBLDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NNBHMM = (POS(NNBHMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NNBHDD > MAXDAY.NNBHMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NNBHDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NITLMM = (POS(NITLMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NITLDD > MAXDAY.NITLMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NITLDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NITHMM = (POS(NITHMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NITHDD > MAXDAY.NITHMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NITHDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NDRLMM = (POS(NDRLMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NDRLDD > MAXDAY.NDRLMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NDRLDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+NDRHMM = (POS(NDRHMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF NDRHDD > MAXDAY.NDRHMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "NDRHDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*----------------------------------------*/                                    
+/* PART 4: PAD VALUES WHERE REQUIRED      */                                    
+/*----------------------------------------*/                                    
+NRUNDD = RIGHT(NRUNDD,2,"0")                                                    
+NAUTDD = RIGHT(NAUTDD,2,"0")                                                    
+NLSTDD = RIGHT(NLSTDD,2,"0")                                                    
+NFUPDD = RIGHT(NFUPDD,2,"0")                                                    
+NSTRDD = RIGHT(NSTRDD,2,"0")                                                    
+NENDDD = RIGHT(NENDDD,2,"0")                                                    
+NCFSDD = RIGHT(NCFSDD,2,"0")                                                    
+NCFEDD = RIGHT(NCFEDD,2,"0")                                                    
+NNBLDD = RIGHT(NNBLDD,2,"0")                                                    
+NNBHDD = RIGHT(NNBHDD,2,"0")                                                    
+NITLDD = RIGHT(NITLDD,2,"0")                                                    
+NITHDD = RIGHT(NITHDD,2,"0")                                                    
+NDRLDD = RIGHT(NDRLDD,2,"0")                                                    
+NDRHDD = RIGHT(NDRHDD,2,"0")                                                    
+/*----------------------------------------*/                                    
+/* PART 5: STORE VALUES                   */                                    
+/*----------------------------------------*/                                    
+"VPUT (NRUNDD NRUNMMM NRUNYYYY NAUTDD NAUTMMM NAUTYYYY",                        
+      "NLSTDD NLSTMMM NLSTYYYY NFUPDD NFUPMMM NFUPYYYY",                        
+      "NSTRDD NSTRMMM NSTRYYYY NENDDD NENDMMM NENDYYYY",                        
+      "NCFSDD NCFSMMM NCFSYYYY NCFEDD NCFEMMM NCFEYYYY",                        
+      "NNBLDD NNBLMMM NNBLYYYY NNBHDD NNBHMMM NNBHYYYY",                        
+      "NITLDD NITLMMM NITLYYYY NITHDD NITHMMM NITHYYYY",                        
+      "NDRLDD NDRLMMM NDRLYYYY NDRHDD NDRHMMM NDRHYYYY",                        
+      "ENVIR)"                                                                  
+/*----------------------------------------*/                                    
+/* PART 6: RUN REMAINING EXECS NECESSARY  */                                    
+/*----------------------------------------*/                                    
+IF PANSEL > 1 THEN ADDRESS TSO "%TAPDAILY"                                      
+IF RC ^= 0 THEN SIGNAL "EXIT"                                                   
+/*                                            */                                
+/*----------------------------------------*/                                    
+/* BI-MONTHLY PARMS NO LONGER UPDATED     */                                    
+/* USING PANEL SELECTIONS 4 & 5           */                                    
+/*----------------------------------------*/                                    
+/* IF PANSEL > 2 & PANSEL ^= 4 THEN ADDRESS TSO "%TAPWKLY" */                   
+/* IF RC ^= 0 THEN SIGNAL "EXIT" */                                             
+/* IF PANSEL > 3 THEN ADDRESS TSO "%TAPBMTLY"    */                             
+/* IF RC ^= 0 THEN SIGNAL "EXIT"                 */                             
+/*                                               */                             
+IF PANSEL > 2 THEN ADDRESS TSO "%TAPWKLY"                                       
+IF RC ^= 0 THEN SIGNAL "EXIT"                                                   
+IF PANSEL > 5 THEN ADDRESS TSO "%TAPMTHLY"                                      
+IF RC ^= 0 THEN SIGNAL "EXIT"                                                   
+IF PANSEL > 6 THEN ADDRESS TSO "%TAPQTRLY"                                      
+IF RC ^= 0 THEN SIGNAL "EXIT"                                                   
+IF PANSEL > 7 THEN ADDRESS TSO "%TAPANN"                                        
+IF RC ^= 0 THEN SIGNAL "EXIT"                                                   
+/*----------------------------------------*/                                    
+/* PART 7: RUN EXEC TO UPDATE PARMS       */                                    
+/*----------------------------------------*/                                    
+ADDRESS TSO "%TAPUPDT"                                                          
+/*----------------------------------------*/                                    
+/* PART 8: UPDATE REQUEST LEADCARDS AS    */                                    
+/*         PART OF THE DAILY WHEN INVOKED */                                    
+/*         IN BATCH                       */                                    
+/*----------------------------------------*/                                    
+"VGET (BATCH)"                                                                  
+/*                                        */                                    
+IF BATCH = "Y" THEN DO                                                          
+   PANSEL = 9                                                                   
+   REQSEL = 1                                                                   
+   "VPUT (PANSEL REQSEL)"                                                       
+   ADDRESS TSO "%TAPREQ1"                                                       
+END                                                                             
+/*                                        */                                    
+IF BATCH = "Y" THEN DO                                                          
+   PANSEL = 9                                                                   
+   REQSEL = 3                                                                   
+   "VPUT (PANSEL REQSEL)"                                                       
+   ADDRESS TSO "%TAPREQ3"                                                       
+END                                                                             
+/*                                        */                                    
+IF BATCH = "Y" THEN DO                                                          
+   PANSEL = 9                                                                   
+   REQSEL = 4                                                                   
+   "VPUT (PANSEL REQSEL)"                                                       
+   ADDRESS TSO "%TAPREQ4"                                                       
+END                                                                             
+/*                                        */                                    
+EXIT:                                                                           
+IF BATCH = "Y"  THEN DO                                                         
+   PANSEL = "X"                                                                 
+   ADDRESS ISPEXEC "VPUT (PANSEL)"                                              
+END                                                                             
+EXIT                                                                            
+/*----------------------------------------*/                                    
+/* CALLED PROCEDURES                      */                                    
+/*----------------------------------------*/                                    
+/*                                        */                                    
+/* ALLOCATE AND READ PARAMETER MEMBER     */                                    
+/*                                        */                                    
+NEXT_WORKDAY:                                                                   
+WORKMM = (POS(WORKMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF WORKWKDY < 4 THEN             /* WKDY: 0=MON, 1=TUE, 2=WED, 3=THU */         
+   DAYS_TO_NXT_WORKDAY = 1       /*       4=FRI, 5=SAT, 6=SUN        */         
+ELSE                                                                            
+   DAYS_TO_NXT_WORKDAY = 7 - WORKWKDY                                           
+WORKWKDY = WORKWKDY + DAYS_TO_NXT_WORKDAY                                       
+IF WORKWKDY > 6 THEN WORKWKDY = WORKWKDY - 7                                    
+WORKDD = WORKDD + DAYS_TO_NXT_WORKDAY                                           
+IF WORKDD > MAXDAY.WORKMM THEN DO                                               
+   WORKDD = WORKDD - MAXDAY.WORKMM                                              
+   WORKMM = WORKMM + 1                                                          
+   IF WORKMM > 12 THEN DO                                                       
+      WORKMM = 1                                                                
+      WORKYYYY = WORKYYYY + 1                                                   
+   END                                                                          
+   WORKMMM = MTHALPHA.WORKMM                                                    
+END                                                                             
+/*                                       */                                     
+/* CHECK FOR HOLIDAYS                    */                                     
+/*                                       */                                     
+IF HOLI_MAX > 0 THEN DO                                                         
+   DO J = 1 TO HOLI_MAX                                                         
+      IF HOLI_YR.J = WORKYYYY & HOLI_MO.J = WORKMM & HOLI_DY.J = WORKDD         
+      THEN DO                                                                   
+         IF WORKWKDY < 4 THEN                                                   
+            DAYS_TO_NXT_WORKDAY = 1                                             
+         ELSE                                                                   
+            DAYS_TO_NXT_WORKDAY = 7 - WORKWKDY                                  
+         WORKWKDY = WORKWKDY + DAYS_TO_NXT_WORKDAY                              
+         IF WORKWKDY > 6 THEN WORKWKDY = WORKWKDY - 7                           
+         WORKDD = WORKDD + DAYS_TO_NXT_WORKDAY                                  
+         IF WORKDD > MAXDAY.WORKMM THEN DO                                      
+            WORKDD = WORKDD - MAXDAY.WORKMM                                     
+            WORKMM = WORKMM + 1                                                 
+            IF WORKMM > 12 THEN DO                                              
+               WORKMM = 1                                                       
+               WORKYYYY = WORKYYYY + 1                                          
+            END                                                                 
+            WORKMMM = MTHALPHA.WORKMM                                           
+         END                                                                    
+      END                                                                       
+   END                                                                          
+END                                                                             
+/*                                       */                                     
+RETURN                                                                          

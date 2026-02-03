@@ -1,0 +1,149 @@
+/*REXX*/                                                                        
+ADDRESS "ISPEXEC"                                                               
+"CONTROL ERRORS RETURN"                                                         
+/*-----------------------------------------------------------------*/           
+/* DATE     USERID    DESCRIPTION                                  */           
+/* -----    ------    -----------                                  */           
+/* 22APR03  WONGALA   CREATE RSP DATE AND RSP SWITCHES             */           
+/* 13APR04  SINJOHN   REVISE RSP DATE AND RSP SWITCHES (CL114)     */           
+/*-----------------------------------------------------------------*/           
+/*---------------------------------------*/                                     
+/* PART 1: INITIALIZATION                */                                     
+/*---------------------------------------*/                                     
+RETURN_CODE = 0                                                                 
+/*                                       */                                     
+/* GET GLOBALS                           */                                     
+/*                                       */                                     
+"VGET (CURRWKDY CURRDD CURRMMM CURRYYYY PANSEL ENVIR WKDY TAPDSN)"              
+"VGET (DATXDD DATXMMM DATXYYYY)"                                                
+/*                                       */                                     
+/* SET UP TABLE OF MAX DAYS PER MONTH    */                                     
+/*                                       */                                     
+MAXDAYS = "312831303130313130313031"                                            
+/*                                       */                                     
+/* CAPS-I-L DOES NOT SUPPORT LEAP YEARS  */                                     
+DO I = 1 TO 12                                                                  
+   PARSE VAR MAXDAYS MAXDAY.I 3 MAXDAYS                                         
+END                                                                             
+/*                                       */                                     
+/* SET UP ALPHA MONTH TABLE              */                                     
+/*                                       */                                     
+MTHSALPHA = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC"                              
+DO I = 1 TO 12                                                                  
+   MTHALPHA.I = SUBSTR(MTHSALPHA,(I - 1) * 3 + 1,3)                             
+END                                                                             
+/*                                       */                                     
+/*---------------------------------------*/                                     
+/* DEFAULT THE RUN AGT PAY INDICATOR     */                                     
+/*---------------------------------------*/                                     
+RUNAGPAY = "N"                                                                  
+/*                                       */                                     
+/* ---------------------------------------------------------------- */          
+/* GET THE LAST AGENT EFT COUNTER AND SAVE ORIGINAL                 */          
+/* ---------------------------------------------------------------- */          
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(CIPA0403)') SHR REUSE"        
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                         
+PARSE VAR INLINE.3 22 AGEFTCTR +4                                               
+ADDRESS TSO "FREE FILE(PARMIN)"                                                 
+AGEFTCTR_ORIG = AGEFTCTR                                                        
+/*                                       */                                     
+/* UPDATE AGENT EFT COUNTER IF WE ARE RUNNING AGT PAYMENT N STATEMENT */        
+IF RUNAGPAY = "Y"  THEN DO                                                      
+   AGEFTCTR = AGEFTCTR + 1                                                      
+   AGEFTCTR = RIGHT(AGEFTCTR,4,"0")                                             
+END                                                                             
+IF AGEFTCTR = ""   THEN                                                         
+   AGEFTCTR = "0000"                                                            
+/*                                       */                                     
+/* RRSP START DATE - IF CUR MTH <= MAR, USE JAN */                              
+/*                                             */                               
+RSPSDD   = "01"                                                                 
+RSPSMMM  = "MAR"                                                                
+RSPSYYYY = DATXYYYY                                                             
+IF DATXMMM = "JAN" THEN RSPSMMM = "JAN"                                         
+IF DATXMMM = "FEB" THEN RSPSMMM = "JAN"                                         
+IF DATXMMM = "MAR" THEN RSPSMMM = "JAN"                                         
+/*                                       */                                     
+/* RRSP END DATE                         */                                     
+/*                                       */                                     
+RSPEDD   = "31"                                                                 
+RSPEMMM  = "DEC"                                                                
+RSPEYYYY = DATXYYYY                                                             
+IF DATXMMM = "JAN" THEN DO                                                      
+   RSPEDD   = "01"                                                              
+   RSPEMMM  = "MAR"                                                             
+END                                                                             
+IF DATXMMM = "FEB" THEN DO                                                      
+   RSPEDD   = "01"                                                              
+   RSPEMMM  = "MAR"                                                             
+END                                                                             
+IF DATXMMM = "MAR" THEN DO                                                      
+   RSPEDD   = "01"                                                              
+   RSPEMMM  = "MAR"                                                             
+END                                                                             
+/*                                       */                                     
+/* RRSP SWITCHES                         */                                     
+/*                                       */                                     
+RSPNREG  = "N"                                                                  
+RSPRCPT  = "N"                                                                  
+RSPZERO  = "N"                                                                  
+IF DATXMMM = "DEC" THEN DO                                                      
+   RSPNREG = "Y"                                                                
+   RSPRCPT = "R"                                                                
+   RSPZERO = "Y"                                                                
+END                                                                             
+/*                                             */                               
+/*---------------------------------------*/                                     
+/* PART 2: BRING UP THE WEEKLY PANEL     */                                     
+/*---------------------------------------*/                                     
+CRSRFLD = "DATXDD"                                                              
+REDISPLAY:                                                                      
+"DISPLAY PANEL(TAPPWKLY)"                                                       
+IF RC ^= 0 THEN DO                                                              
+   "SETMSG MSG(TAPM006)"                                                        
+   RETURN_CODE = 1                                                              
+   SIGNAL "EXIT"                                                                
+END                                                                             
+/*----------------------------------------*/                                    
+/* PART 3: EDITING NOT DONE IN PANEL      */                                    
+/*----------------------------------------*/                                    
+/*                                        */                                    
+/* DAY OF THE MONTH                       */                                    
+/*                                        */                                    
+DATXMM = (POS(DATXMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF DATXDD > MAXDAY.DATXMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "DATXDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+RSPSMM = (POS(RSPSMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF RSPSDD > MAXDAY.RSPSMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "RSPSDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+RSPEMM = (POS(RSPEMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF RSPEDD > MAXDAY.RSPEMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "RSPEDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/* PART 4: PAD VALUES WHERE REQUIRED      */                                    
+/*----------------------------------------*/                                    
+DATXDD = RIGHT(DATXDD,2,"0")                                                    
+RSPSDD = RIGHT(RSPSDD,2,"0")                                                    
+RSPEDD = RIGHT(RSPEDD,2,"0")                                                    
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/* PART 5: STORE VALUES                   */                                    
+/*----------------------------------------*/                                    
+"VPUT (DATXDD DATXMMM DATXYYYY)"                                                
+"VPUT (RUNAGPAY AGEFTCTR)"                                                      
+"VPUT (RSPSDD RSPSMMM RSPSYYYY",                                                
+      "RSPEDD RSPEMMM RSPEYYYY RSPNREG RSPRCPT RSPZERO)"                        
+EXIT:                                                                           
+EXIT RETURN_CODE                                                                

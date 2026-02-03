@@ -1,0 +1,1832 @@
+/*REXX*/                                                                        
+ADDRESS "TSO"                                                                   
+/*-----------------------------------------------------------------*/           
+/* Date     Userid    Description                                  */           
+/* -----    ------    -----------                                  */           
+/* 20sep05  nazarst   New generic datx leadcard                    */           
+/* 07APR05  CHAPDOU   REMOVE FORCING OF ACTIVITY WHEN MONTHLY,     */           
+/*                    QUARTERLY OR ANNUAL (CL145)                  */           
+/* 13APR04  SINJOHN   REVISE RSP DATE AND RSP SWITCHES (CL114)     */           
+/*                    - ADD LEADCARDS CIPA245C CIPA245D            */           
+/*                    - REMOVE OBSOLETE LEADCARD CIPA0245          */           
+/* 12Mar04  CHUFRAN   New leadcard MIPADTAX                        */           
+/* 19Feb04  SIJARJA   New leadcard MIPADEPD                        */           
+/* 01Aug03  CHUFRAN   New leadcard MIPAMDIR & MIPAYDIR             */           
+/* 22Jun03  Lenio     New Leadcard CIPAAVE1                        */           
+/* 22Apr03  WONGALA   Fix Leadcard CIPA9503                        */           
+/*                    CIPA9528 CIPA9529 CIPA9527 CIPA952B CIPA952C */           
+/*                    CIPA952D CIPA952E CIPA9526 CIPA952F CIPA952G */           
+/*                    CIPA952H CIPA952I CIPA952J CIPA952K          */           
+/*                    Add Leadcard CIPA245B CIPA9718 CIPA0267      */           
+/* 17NOV03  SIJARIC   - CHANGED FILE NUMBER CREATION FOR CRC TAPES */           
+/* 18DEC03  MCKOWDO   - Changed CIPA0942 & CIPA0943 to contain     */           
+/*                      next year's date (01JANYYYY)               */           
+/*                      added leadcards CIPA0942B CIPA0942C        */           
+/*                      CIPA0942D CIPA0943B CIPA0943C CIPA0943D    */           
+/*                      TAG #CL095                                 */           
+/* 08JUN06  KOO M     move CIPAAVE1 to monthly updt section 38556  */           
+/*-----------------------------------------------------------------*/           
+/*---------------------------------------*/                                     
+/* CATS LEADCARD UPDATE DIALOG           */                                     
+/*---------------------------------------*/                                     
+/*---------------------------------------*/                                     
+/* PART 1: INITIALIZATION                */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+/* GET GLOBALS                           */                                     
+/*                                       */                                     
+"ISPEXEC VGET (PANSEL TAPDSN)"                                                  
+/*                                       */                                     
+/* ERROR VARIABLES                       */                                     
+/*                                       */                                     
+ERR_COUNT   = 0                                                                 
+ERR_PARM.   = ""                                                                
+ERR_CODE.   = 0                                                                 
+/*                                       */                                     
+/* STOP ALL OUTPUT TO CONSOLE            */                                     
+/*                                       */                                     
+DUMMY = OUTTRAP(X)                                                              
+/*                                       */                                     
+/* IF REQUEST SELECTION 7, THEN SKIP     */                                     
+/* NBS AND DAILY THROUGH ANNUAL          */                                     
+/*                                       */                                     
+IF  PANSEL = 9 THEN SIGNAL "PART_9"                                             
+/*---------------------------------------*/                                     
+/* PART 2: NBS PARAMETERS                */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+/* GET NBS GLOBALS                       */                                     
+/*                                       */                                     
+"ISPEXEC VGET (NRUNDD NRUNMMM NRUNYYYY",                                        
+  "NAUTDD NAUTMMM NAUTYYYY NLSTDD NLSTMMM NLSTYYYY",                            
+  "NFUPDD NFUPMMM NFUPYYYY NSTRDD NSTRMMM NSTRYYYY",                            
+  "NENDDD NENDMMM NENDYYYY",                                                    
+  "NCFSDD NCFSMMM NCFSYYYY NCFEDD NCFEMMM NCFEYYYY",                            
+  "NNBLDD NNBLMMM NNBLYYYY NNBHDD NNBHMMM NNBHYYYY",                            
+  "NITLDD NITLMMM NITLYYYY NITHDD NITHMMM NITHYYYY",                            
+  "NDRLDD NDRLMMM NDRLYYYY NDRHDD NDRHMMM NDRHYYYY",                            
+  "ENVIR)"                                                                      
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+NRUN_STR = NRUNDD||NRUNMMM||NRUNYYYY                                            
+NSTR_STR = NSTRDD||NSTRMMM||NSTRYYYY                                            
+NEND_STR = NENDDD||NENDMMM||NENDYYYY                                            
+/*                                       */                                     
+PARM_NAME = "CIPA0990"                                                          
+CALL READ_PARM                                                                  
+INLINE.3 = OVERLAY(NSTR_STR,INLINE.3,22)                                        
+INLINE.4 = OVERLAY(NEND_STR,INLINE.4,22)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA1260"                                                          
+CALL READ_PARM                                                                  
+INLINE.4 = OVERLAY(NRUN_STR,INLINE.4,22)                                        
+INLINE.7 = OVERLAY(NRUN_STR,INLINE.7,22)                                        
+INLINE.10 = OVERLAY(NRUN_STR,INLINE.10,22)                                      
+INLINE.13 = OVERLAY(NRUN_STR,INLINE.13,22)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA1300"                                                          
+CALL READ_PARM                                                                  
+PARSE VAR INLINE.6 1 PARM_TYPE    +20                                           
+IF PARM_TYPE ^= "RUN DATE            " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+INLINE.6 = OVERLAY(NRUN_STR,INLINE.6,22)                                        
+PARSE VAR INLINE.7 1 PARM_TYPE    +20                                           
+IF PARM_TYPE ^= "NEW BUS LOW DATE    " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+REPL_STR = NNBLDD||NNBLMMM||NNBLYYYY                                            
+INLINE.7 = OVERLAY(REPL_STR,INLINE.7,22)                                        
+PARSE VAR INLINE.8 1 PARM_TYPE    +20                                           
+IF PARM_TYPE ^= "NEW BUS HIGH DATE   " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+REPL_STR = NNBHDD||NNBHMMM||NNBHYYYY                                            
+INLINE.8 = OVERLAY(REPL_STR,INLINE.8,22)                                        
+/* Zurich is not using issue time analysis */                                   
+/*PARSE VAR INLINE.9 1 PARM_TYPE    +20 */                                      
+/*IF PARM_TYPE ^= "ISSUE-T-A LOW DATE  " THEN DO */                             
+/*   ERR_COUNT = ERR_COUNT + 1 */                                               
+/*   ERR_PARM.ERR_COUNT = PARM_NAME */                                          
+/*   ERR_TYPE.ERR_COUNT = "ORDER" */                                            
+/*   ERR_CODE.ERR_COUNT = 20 */                                                 
+/*   MAX_RC             = 20 */                                                 
+/*END */                                                                        
+/*REPL_STR = NITLDD||NITLMMM||NITLYYYY */                                       
+/*INLINE.9 = OVERLAY(REPL_STR,INLINE.9,22) */                                   
+/*PARSE VAR INLINE.10 1 PARM_TYPE    +20 */                                     
+/*IF PARM_TYPE ^= "ISSUE-T-A HIGH DATE " THEN DO */                             
+/*   ERR_COUNT = ERR_COUNT + 1 */                                               
+/*   ERR_PARM.ERR_COUNT = PARM_NAME */                                          
+/*   ERR_TYPE.ERR_COUNT = "ORDER" */                                            
+/*   ERR_CODE.ERR_COUNT = 20 */                                                 
+/*   MAX_RC             = 20 */                                                 
+/*END */                                                                        
+/*REPL_STR = NITHDD||NITHMMM||NITHYYYY */                                       
+/*INLINE.10 = OVERLAY(REPL_STR,INLINE.10,22)*/                                  
+PARSE VAR INLINE.9 1 PARM_TYPE    +20                                           
+IF PARM_TYPE ^= "DLY RECVD LOW DATE  " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+REPL_STR = NDRLDD||NDRLMMM||NDRLYYYY                                            
+INLINE.9 = OVERLAY(REPL_STR,INLINE.9,22)                                        
+PARSE VAR INLINE.10 1 PARM_TYPE    +20                                          
+IF PARM_TYPE ^= "DLY RECVD HIGH DATE " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+REPL_STR = NDRHDD||NDRHMMM||NDRHYYYY                                            
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,22)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA130D"                                                          
+CALL READ_PARM                                                                  
+PARSE VAR INLINE.6 1 PARM_TYPE    +20                                           
+IF PARM_TYPE ^= "RUN DATE            " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+INLINE.6 = OVERLAY(NRUN_STR,INLINE.6,22)                                        
+PARSE VAR INLINE.7 1 PARM_TYPE    +20                                           
+IF PARM_TYPE ^= "NEW BUS LOW DATE    " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+REPL_STR = NNBLDD||NNBLMMM||NNBLYYYY                                            
+INLINE.7 = OVERLAY(REPL_STR,INLINE.7,22)                                        
+PARSE VAR INLINE.8 1 PARM_TYPE    +20                                           
+IF PARM_TYPE ^= "NEW BUS HIGH DATE   " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+REPL_STR = NNBHDD||NNBHMMM||NNBHYYYY                                            
+INLINE.8 = OVERLAY(REPL_STR,INLINE.8,22)                                        
+PARSE VAR INLINE.9 1 PARM_TYPE    +20                                           
+IF PARM_TYPE ^= "DLY RECVD LOW DATE  " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+REPL_STR = NDRLDD||NDRLMMM||NDRLYYYY                                            
+INLINE.9 = OVERLAY(REPL_STR,INLINE.9,22)                                        
+PARSE VAR INLINE.10 1 PARM_TYPE    +20                                          
+IF PARM_TYPE ^= "DLY RECVD HIGH DATE " THEN DO                                  
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ORDER"                                                 
+   ERR_CODE.ERR_COUNT = 20                                                      
+   MAX_RC             = 20                                                      
+END                                                                             
+REPL_STR = NDRHDD||NDRHMMM||NDRHYYYY                                            
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,22)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA1400"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = NLSTDD||NLSTMMM||NLSTYYYY                                            
+INLINE.3 = OVERLAY(REPL_STR,INLINE.3,22)                                        
+REPL_STR = NAUTDD||NAUTMMM||NAUTYYYY                                            
+INLINE.4 = OVERLAY(REPL_STR,INLINE.4,22)                                        
+REPL_STR = NFUPDD||NFUPMMM||NFUPYYYY                                            
+INLINE.9 = OVERLAY(REPL_STR,INLINE.9,22)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA1450"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = NCFSDD||NCFSMMM||NCFSYYYY                                            
+INLINE.3 = OVERLAY(REPL_STR,INLINE.3,22)                                        
+REPL_STR = NCFEDD||NCFEMMM||NCFEYYYY                                            
+INLINE.4 = OVERLAY(REPL_STR,INLINE.4,22)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA1480"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = NAUTDD||NAUTMMM||NAUTYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,22)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9524"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = NAUTDD||NAUTMMM||NAUTYYYY                                            
+INLINE.5 = OVERLAY(REPL_STR,INLINE.5,22)                                        
+REPL_STR = NNBLDD||NNBLMMM||NNBLYYYY                                            
+INLINE.7 = OVERLAY(REPL_STR,INLINE.7,22)                                        
+REPL_STR = NAUTDD||NAUTMMM||NAUTYYYY                                            
+INLINE.8 = OVERLAY(REPL_STR,INLINE.8,22)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "NBS"                                                                 
+IF  PANSEL = 1 THEN SIGNAL "EXIT"                                               
+/*                                       */                                     
+/*---------------------------------------*/                                     
+/* PART 3: DAILY PARAMETERS              */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+/* GET DAILY GLOBALS                     */                                     
+/*                                       */                                     
+"ISPEXEC VGET (DATXDD DATXMMM DATXYYYY NXWKDD NXWKMMM NXWKYYYY",                
+      "CAUTDD CAUTMMM CAUTYYYY CLSTDD CLSTMMM CLSTYYYY",                        
+      "STYRDD STYRMMM STYRYYYY CMTHMM CYERYYYY",                                
+      "PACTAPEC PACTAPEF EFTTAPEC EFTTAPEF",                                    
+      "CRCTAPEC CRCTAPEF CRCFLAG",                                              
+      "RUNAGPAY AGEFTCTR",                                                      
+      "ENXMDD ENXMMMM ENXMYYYY",                                                
+      "EMTHDD EMTHMMM EMTHYYYY",                                                
+      "SMTHDD SMTHMMM SMTHYYYY",                                                
+      "SQTRDD SQTRMMM SQTRYYYY",                                                
+      "LBILDD LBILMMM LBILYYYY LBILNONE",                                       
+      "HBILDD HBILMMM HBILYYYY HBILNONE",                                       
+      "LPACDD LPACMMM LPACYYYY LPACNONE",                                       
+      "HPACDD HPACMMM HPACYYYY HPACNONE",                                       
+      "HANNDD HANNMMM HANNYYYY HANNNONE",                                       
+      "HCLMDD HCLMMMM HCLMYYYY HCLMNONE)"                                       
+/*                                       */                                     
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+REPL_STR = CMTHMM||CYERYYYY                                                     
+PARM_NAME = "CIPA0097"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+PARM_NAME = "CIPA0098"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0201"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = CAUTDD||CAUTMMM||CAUTYYYY CLSTDD||CLSTMMM||CLSTYYYY                  
+INLINE.3 = OVERLAY(REPL_STR,INLINE.3,8)                                         
+/* The following logic to force activity on monthly, quarterly or               
+   annual batch runs was commented out on Apr. 7, 2005 (CHAPDOU,                
+   change tag CL145). */                                                        
+/* IF PANSEL < 6 THEN                                                           
+      REPL_STR = "N"                                                            
+   ELSE                                                                         
+      REPL_STR = "Y"                                                            
+   INLINE.3 = OVERLAY(REPL_STR,INLINE.3,46)                                     
+*/                                                                              
+IF LBILNONE = "NONE" THEN                                                       
+   REPL_STR = "NONE      NONE     "                                             
+ELSE                                                                            
+   REPL_STR = LBILDD||LBILMMM||LBILYYYY HBILDD||HBILMMM||HBILYYYY               
+IF LPACNONE = "NONE" THEN                                                       
+   REPL_STR = REPL_STR||" NONE      NONE     "                                  
+ELSE                                                                            
+   REPL_STR = REPL_STR LPACDD||LPACMMM||LPACYYYY HPACDD||HPACMMM||,             
+   HPACYYYY                                                                     
+IF HANNNONE = "NONE" THEN                                                       
+   REPL_STR = REPL_STR||" NONE     "                                            
+ELSE                                                                            
+   REPL_STR = REPL_STR HANNDD||HANNMMM||HANNYYYY                                
+IF HCLMNONE = "NONE" THEN                                                       
+   REPL_STR = REPL_STR||" NONE     "                                            
+ELSE                                                                            
+   REPL_STR = REPL_STR HCLMDD||HCLMMMM||HCLMYYYY                                
+INLINE.6 = OVERLAY(REPL_STR,INLINE.6,8)                                         
+IF HPACNONE ^= "NONE" THEN DO                                                   
+   REPL_STR = HPACDD||HPACMMM||HPACYYYY                                         
+   INLINE.12 = OVERLAY(REPL_STR,INLINE.12,8)                                    
+END                                                                             
+IF HANNNONE ^= "NONE" THEN DO                                                   
+   REPL_STR = HANNDD||HANNMMM||HANNYYYY                                         
+   INLINE.12 = OVERLAY(REPL_STR,INLINE.12,18)                                   
+END                                                                             
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/*  start 2aug 2000, new code for icppdpul     */                               
+/*                                       */                                     
+PARM_NAME = "CIPRDPUL"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,33)                                      
+/*                                          */                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDPU2"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,33)                                      
+/*                                          */                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDPU3"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,33)                                      
+/*                                          */                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDPU4"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,33)                                      
+/*                                          */                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDPU5"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,33)                                      
+/*                                          */                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDPU6"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,33)                                      
+/*                                          */                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDPU7"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,33)                                      
+/*                                          */                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDPU8"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,33)                                      
+/*                                          */                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDSTR"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN NXWKMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NXWKMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NXWKMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NXWKMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NXWKMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NXWKMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NXWKMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NXWKMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NXWKMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NXWKMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NXWKMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NXWKMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.6 = OVERLAY(REPL_STR,INLINE.6,29)                                        
+INLINE.17 = OVERLAY(REPL_STR,INLINE.17,29)                                      
+INLINE.28 = OVERLAY(REPL_STR,INLINE.28,29)                                      
+INLINE.39 = OVERLAY(REPL_STR,INLINE.39,29)                                      
+REPL_STR = NXWKYYYY                                                             
+INLINE.6 = OVERLAY(REPL_STR,INLINE.6,25)                                        
+INLINE.17 = OVERLAY(REPL_STR,INLINE.17,25)                                      
+INLINE.28 = OVERLAY(REPL_STR,INLINE.28,25)                                      
+INLINE.39 = OVERLAY(REPL_STR,INLINE.39,25)                                      
+REPL_STR = NXWKDD                                                               
+INLINE.6 = OVERLAY(REPL_STR,INLINE.6,33)                                        
+INLINE.17 = OVERLAY(REPL_STR,INLINE.17,33)                                      
+INLINE.28 = OVERLAY(REPL_STR,INLINE.28,33)                                      
+INLINE.39 = OVERLAY(REPL_STR,INLINE.39,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPRDSTR"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN CAUTMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN CAUTMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN CAUTMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN CAUTMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN CAUTMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN CAUTMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN CAUTMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN CAUTMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN CAUTMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN CAUTMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN CAUTMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN CAUTMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.7 = OVERLAY(REPL_STR,INLINE.7,29)                                        
+INLINE.18 = OVERLAY(REPL_STR,INLINE.18,29)                                      
+INLINE.29 = OVERLAY(REPL_STR,INLINE.29,29)                                      
+INLINE.40 = OVERLAY(REPL_STR,INLINE.40,29)                                      
+REPL_STR = CAUTYYYY                                                             
+INLINE.7 = OVERLAY(REPL_STR,INLINE.7,25)                                        
+INLINE.18 = OVERLAY(REPL_STR,INLINE.18,25)                                      
+INLINE.29 = OVERLAY(REPL_STR,INLINE.29,25)                                      
+INLINE.40 = OVERLAY(REPL_STR,INLINE.40,25)                                      
+REPL_STR = CAUTDD                                                               
+INLINE.7 = OVERLAY(REPL_STR,INLINE.7,33)                                        
+INLINE.18 = OVERLAY(REPL_STR,INLINE.18,33)                                      
+INLINE.29 = OVERLAY(REPL_STR,INLINE.29,33)                                      
+INLINE.40 = OVERLAY(REPL_STR,INLINE.40,33)                                      
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* PARM_NAME = "CIPAAVE1"                  */                                   
+/* CALL READ_PARM                          */                                   
+/* REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY    */                                   
+/* INLINE.2 = OVERLAY(REPL_STR,INLINE.2,1) */                                   
+/* CALL UPDT_PARM                          */                                   
+/*                                       */                                     
+/*  end  2aug 2000, new code for icppdpul     */                                
+/*                                       */                                     
+/*  23 AUG 2002  SQL FOR TAI DAILY FILE       */                                
+PARM_NAME = "CIPRTAID"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN NSTRMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN NSTRMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN NSTRMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN NSTRMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN NSTRMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN NSTRMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN NSTRMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN NSTRMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN NSTRMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN NSTRMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN NSTRMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN NSTRMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-12-"                                
+END                                                                             
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,5)                                         
+REPL_STR = NSTRYYYY                                                             
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,1)                                         
+REPL_STR = NSTRDD                                                               
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0210"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/*    sep 2002, pgm name and date        */                                     
+PARM_NAME = "CIPATAIB"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,07)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA953A"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0232"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0260"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,7)                                         
+INLINE.3 = OVERLAY(PACTAPEC,INLINE.3,22)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0265"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(EFTTAPEC,INLINE.2,22)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0276"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = DATX_STR DATX_STR                                                    
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0354"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = NCFSDD||NCFSMMM||NCFSYYYY||NCFEDD||NCFEMMM||NCFEYYYY                 
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0855"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = DATX_STR STYRDD||STYRMMM||STYRYYYY DATX_STR                          
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9566"                                                          
+CALL READ_PARM                                                                  
+INLINE.1 = OVERLAY(DATX_STR,INLINE.1,39)                                        
+REPL_STR = NXWKDD||NXWKMMM||NXWKYYYY                                            
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,63)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA062B"                                                          
+CALL READ_PARM                                                                  
+INLINE.1 = OVERLAY(DATX_STR,INLINE.1,11)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA063B"                                                          
+CALL READ_PARM                                                                  
+INLINE.1 = OVERLAY(DATX_STR,INLINE.1,11)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9543"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(CRCFLAG,INLINE.2,53)                                         
+INLINE.3 = OVERLAY(CRCTAPEC,INLINE.3,22)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9544"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9545"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9548"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = NNBLDD||NNBLMMM||NNBLYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+REPL_STR = NNBHDD||NNBHMMM||NNBHYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,20)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9710"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9780"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN DATXMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN DATXMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN DATXMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN DATXMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN DATXMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN DATXMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN DATXMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN DATXMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN DATXMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN DATXMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN DATXMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN DATXMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,29)                                        
+REPL_STR = DATXYYYY                                                             
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,25)                                        
+REPL_STR = DATXDD                                                               
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,33)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/*                                       */                                     
+/*  sep 2002, TAI extract header card    */                                     
+PARM_NAME = "CIPATAIX"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN DATXMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN DATXMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN DATXMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN DATXMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN DATXMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN DATXMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN DATXMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN DATXMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN DATXMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN DATXMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN DATXMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN DATXMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "-01-"                                
+END                                                                             
+FPAY_MMM = REPL_STR                                                             
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,12)                                        
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,22)                                        
+REPL_STR = DATXYYYY                                                             
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,08)                                        
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,18)                                        
+REPL_STR = DATXDD                                                               
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,16)                                        
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,26)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/*    feb 2004, pgm name and date        */                                     
+PARM_NAME = "MIPADEPD"                                                          
+CALL READ_PARM                                                                  
+INLINE.1 = OVERLAY(FPAY_MMM,INLINE.1,05)                                        
+REPL_STR = DATXYYYY                                                             
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,01)                                        
+REPL_STR = DATXDD                                                               
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,09)                                        
+SWITCH_ON = 'Y'                                                                 
+INLINE.1 = OVERLAY(SWITCH_ON,INLINE.1,12)                                       
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9715"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,22)                                        
+CALL UPDT_PARM                                                                  
+                                                                                
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* UPDATE bi monthly parms daily         */                                     
+/*                                       */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA9580"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = ENXMDD||ENXMMMM||ENXMYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9581"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = ENXMDD||ENXMMMM||ENXMYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPAVL01"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+     WHEN EMTHMMM = "JAN" THEN REPL_STR = "-01-"                                
+     WHEN EMTHMMM = "FEB" THEN REPL_STR = "-02-"                                
+     WHEN EMTHMMM = "MAR" THEN REPL_STR = "-03-"                                
+     WHEN EMTHMMM = "APR" THEN REPL_STR = "-04-"                                
+     WHEN EMTHMMM = "MAY" THEN REPL_STR = "-05-"                                
+     WHEN EMTHMMM = "JUN" THEN REPL_STR = "-06-"                                
+     WHEN EMTHMMM = "JUL" THEN REPL_STR = "-07-"                                
+     WHEN EMTHMMM = "AUG" THEN REPL_STR = "-08-"                                
+     WHEN EMTHMMM = "SEP" THEN REPL_STR = "-09-"                                
+     WHEN EMTHMMM = "OCT" THEN REPL_STR = "-10-"                                
+     WHEN EMTHMMM = "NOV" THEN REPL_STR = "-11-"                                
+     WHEN EMTHMMM = "DEC" THEN REPL_STR = "-12-"                                
+     OTHERWISE                 REPL_STR = "????"                                
+END                                                                             
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,25)                                        
+REPL_STR = EMTHYYYY                                                             
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,21)                                        
+REPL_STR = EMTHDD                                                               
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,29)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "MIPADTAX"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = CAUTDD||CAUTMMM||CAUTYYYY                                            
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,10)                                        
+REPL_STR = CLSTDD||CLSTMMM||CLSTYYYY                                            
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,38)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "MIPADATX"                                                          
+CALL READ_PARM                                                                  
+INLINE.1 = OVERLAY(DATX_STR,INLINE.1,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Daily"                                                               
+IF  PANSEL = 2 THEN SIGNAL "EXIT"                                               
+/*---------------------------------------*/                                     
+/* PART 4: WEEKLY PARAMETERS             */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+/* GET DAILY GLOBALS                     */                                     
+/*                                       */                                     
+"ISPEXEC VGET (DATXDD DATXMMM DATXYYYY RSPSDD RSPSMMM RSPSYYYY",                
+      "RSPEDD RSPEMMM RSPEYYYY RSPNREG RSPRCPT RSPZERO"                         
+/*                                       */                                     
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA245A"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,7)                                         
+REPL_STR = DATX_STR||DATX_STR                                                   
+REPL_STR = OVERLAY('01',REPL_STR,1)                                             
+/* enter report name when output required else leave blank;  */                 
+/* start dates and end dates change for different reports    */                 
+INLINE.3 = OVERLAY(REPL_STR||' NEW BUSINESS    ',INLINE.3,13)                   
+REPL_STR = DATX_STR||DATX_STR                                                   
+INLINE.4 = OVERLAY(REPL_STR||' RESTRICT BILLING',INLINE.4,13)                   
+REPL_STR = OVERLAY('01',REPL_STR,1)                                             
+INLINE.5 = OVERLAY(REPL_STR||' INFORCE ACTIVITY',INLINE.5,13)                   
+INLINE.6 = OVERLAY(REPL_STR||'                 ',INLINE.6,13)                   
+INLINE.7 = OVERLAY(REPL_STR||'                 ',INLINE.7,13)                   
+REPL_STR = DATX_STR||DATX_STR                                                   
+INLINE.8 = OVERLAY(REPL_STR||'                 ',INLINE.8,13)                   
+REPL_STR = OVERLAY('01',REPL_STR,1)                                             
+INLINE.9 = OVERLAY(REPL_STR||'                 ',INLINE.9,13)                   
+INLINE.10 = OVERLAY(REPL_STR||'                 ',INLINE.10,13)                 
+CALL UPDT_PARM                                                                  
+/* POSSIBLE VALUES:          'NEW BUSINESS    '  */                             
+/* (in this order, and       'RESTRICT BILLING'  */                             
+/*  displacement)            'INFORCE ACTIVITY'  */                             
+/*                           'PERSISTENCY     '  */                             
+/*                           'ISSUE ANALYSIS  '  */                             
+/*                           'TOTAL INFORCE   '  */                             
+/*                           'OVERDUE PREMIUMS'  */                             
+/*                            'MDRT CREDITS    ' */                             
+/*                                               */                             
+PARM_NAME = "CIPA245B"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,7)                                         
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+/* REPORT NAME ENTERED WHEN OUTPUT REQUIRED ELSE LEFT BLANK;    */              
+/* START DATES AND END DATES CHANGE FOR DIFFERENT REPORTS;      */              
+/* SEE WEEKLY SECTION OF THIS PROGRAM FOR POSSIBLE VALUES.      */              
+INLINE.3 = OVERLAY(REPL_STR'                 ',INLINE.3,13)                     
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.4 = OVERLAY(REPL_STR'                 ',INLINE.4,13)                     
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.5 = OVERLAY(REPL_STR'                 ',INLINE.5,13)                     
+INLINE.6 = OVERLAY(REPL_STR'                 ',INLINE.6,13)                     
+INLINE.7 = OVERLAY(REPL_STR'                 ',INLINE.7,13)                     
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.8 = OVERLAY(REPL_STR'                 ',INLINE.8,13)                     
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.9 = OVERLAY(REPL_STR'                 ',INLINE.9,13)                     
+INLINE.10 = OVERLAY(REPL_STR'                 ',INLINE.10,13)                   
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA245C"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,7)                                         
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+/* REPORT NAME ENTERED WHEN OUTPUT REQUIRED ELSE LEFT BLANK;    */              
+/* START DATES AND END DATES CHANGE FOR DIFFERENT REPORTS;      */              
+/* SEE WEEKLY SECTION OF THIS PROGRAM FOR POSSIBLE VALUES.      */              
+INLINE.3 = OVERLAY(REPL_STR' NEW BUSINESS    ',INLINE.3,13)                     
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.4 = OVERLAY(REPL_STR' RESTRICT BILLING',INLINE.4,13)                     
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.5 = OVERLAY(REPL_STR' INFORCE ACTIVITY',INLINE.5,13)                     
+INLINE.6 = OVERLAY(REPL_STR'                 ',INLINE.6,13)                     
+INLINE.7 = OVERLAY(REPL_STR'                 ',INLINE.7,13)                     
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.8 = OVERLAY(REPL_STR'                 ',INLINE.8,13)                     
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.9 = OVERLAY(REPL_STR'                 ',INLINE.9,13)                     
+INLINE.10 = OVERLAY(REPL_STR'                 ',INLINE.10,13)                   
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA245D"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,7)                                         
+REPL_STR = RSPSDD||RSPSMMM||RSPSYYYY                                            
+REPL_STR = REPL_STR||RSPEDD||RSPEMMM||RSPEYYYY                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,51)                                        
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+/* REPORT NAME ENTERED WHEN OUTPUT REQUIRED ELSE LEFT BLANK;    */              
+/* START DATES AND END DATES CHANGE FOR DIFFERENT REPORTS;      */              
+/* SEE WEEKLY SECTION OF THIS PROGRAM FOR POSSIBLE VALUES.      */              
+INLINE.3 = OVERLAY(REPL_STR'                 ',INLINE.3,13)                     
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.4 = OVERLAY(REPL_STR'                 ',INLINE.4,13)                     
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.5 = OVERLAY(REPL_STR'                 ',INLINE.5,13)                     
+INLINE.6 = OVERLAY(REPL_STR'                 ',INLINE.6,13)                     
+INLINE.7 = OVERLAY(REPL_STR'                 ',INLINE.7,13)                     
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.8 = OVERLAY(REPL_STR'                 ',INLINE.8,13)                     
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY||EMTHDD||EMTHMMM||EMTHYYYY                 
+INLINE.9 = OVERLAY(REPL_STR'                 ',INLINE.9,13)                     
+INLINE.10 = OVERLAY(REPL_STR'                 ',INLINE.10,13)                   
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/*                                               */                             
+ PARM_NAME = "CIPA0403"                                                         
+ CALL READ_PARM                                                                 
+ IF  PANSEL < 6 THEN                                                            
+     REPL_STR = "P"||DATX_STR                                                   
+ ELSE                                                                           
+     REPL_STR = "M"||DATX_STR                                                   
+ INLINE.2 = OVERLAY(REPL_STR,INLINE.2,9)                                        
+/* Update Agent EFT counter if we are running Agt payment n statement */        
+ IF RUNAGPAY = "Y" | PANSEL >= 6  THEN DO                                       
+    INLINE.2 = OVERLAY("Y",INLINE.2,38)                                         
+    INLINE.3 = OVERLAY(AGEFTCTR,INLINE.3,22)                                    
+ END                                                                            
+ ELSE DO                                                                        
+    INLINE.2 = OVERLAY("N",INLINE.2,38)                                         
+ END                                                                            
+ CALL UPDT_PARM                                                                 
+/*                                       */                                     
+ PARM_NAME = "CIPA9585"                                                         
+ CALL READ_PARM                                                                 
+ IF  PANSEL < 6 THEN                                                            
+     REPL_STR = "P"||DATX_STR                                                   
+ ELSE                                                                           
+     REPL_STR = "M"||DATX_STR                                                   
+ INLINE.2 = OVERLAY(REPL_STR,INLINE.2,9)                                        
+ IF RUNAGPAY = "Y" | PANSEL >= 6  THEN DO                                       
+    INLINE.3 = OVERLAY("Y",INLINE.3,12)                                         
+ END                                                                            
+ ELSE DO                                                                        
+    INLINE.3 = OVERLAY("N",INLINE.3,12)                                         
+ END                                                                            
+ CALL UPDT_PARM                                                                 
+/*                                       */                                     
+PARM_NAME = "CIPA9513"                                                          
+CALL READ_PARM                                                                  
+SELECT                                                                          
+  WHEN DATXMMM = "JAN" THEN REPL_STR = "JANUARY  "                              
+  WHEN DATXMMM = "FEB" THEN REPL_STR = "FEBRUARY "                              
+  WHEN DATXMMM = "MAR" THEN REPL_STR = "MARCH    "                              
+  WHEN DATXMMM = "APR" THEN REPL_STR = "APRIL    "                              
+  WHEN DATXMMM = "MAY" THEN REPL_STR = "MAY      "                              
+  WHEN DATXMMM = "JUN" THEN REPL_STR = "JUNE     "                              
+  WHEN DATXMMM = "JUL" THEN REPL_STR = "JULY     "                              
+  WHEN DATXMMM = "AUG" THEN REPL_STR = "AUGUST   "                              
+  WHEN DATXMMM = "SEP" THEN REPL_STR = "SEPTEMBER"                              
+  WHEN DATXMMM = "OCT" THEN REPL_STR = "OCTOBER  "                              
+  WHEN DATXMMM = "NOV" THEN REPL_STR = "NOVEMBER "                              
+  WHEN DATXMMM = "DEC" THEN REPL_STR = "DECEMBER "                              
+  OTHERWISE                 REPL_STR = "?????????"                              
+END                                                                             
+REPL_STR = DATXDD REPL_STR DATXYYYY                                             
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9528"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,1)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9529"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,1)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9527"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952B"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952C"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952D"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952E"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9526"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = EMTHDD||EMTHMMM||EMTHYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,1)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952F"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SQTRDD||SQTRMMM||SQTRYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952G"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SQTRDD||SQTRMMM||SQTRYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952H"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SQTRDD||SQTRMMM||SQTRYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952I"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SQTRDD||SQTRMMM||SQTRYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952J"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SQTRDD||SQTRMMM||SQTRYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA952K"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = SQTRDD||SQTRMMM||SQTRYYYY EMTHDD||EMTHMMM||EMTHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Weekly"                                                              
+IF  PANSEL = 3 THEN SIGNAL "EXIT"                                               
+/*---------------------------------------*/                                     
+/* PART 5: BI-MONTHLY PARAMETERS         */                                     
+/*---------------------------------------*/                                     
+/* update of bi-monthly parms moved to daily parms */                           
+/*---------------------------------------*/                                     
+/*                                       */                                     
+/*---------------------------------------*/                                     
+/* PART 6: MONTHLY PARAMETERS            */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* GET MONTHLY GLOBALS                   */                                     
+/*                                       */                                     
+"ISPEXEC VGET (SMTHDD SMTHMMM SMTHYYYY EMTHDD EMTHMMM EMTHYYYY",                
+  "RSPSDD RSPSMMM RSPSYYYY RSPEDD RSPEMMM RSPEYYYY",                            
+  "RSPNREG RSPRCPT RSPZERO ENXMDD ENXMMMM ENXMYYYY",                            
+  "SNX2DD SNX2MMM SNX2YYYY ENX2DD ENX2MMM ENX2YYYY)"                            
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+REPL_STR = CMTHMM||CYERYYYY                                                     
+PARM_NAME = "CIPA097A"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+PARM_NAME = "CIPA098A"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0387"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = ENXMDD||ENXMMMM||ENXMYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0388"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = ENXMDD||ENXMMMM||ENXMYYYY                                            
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0413"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0420"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPAAVE1"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,1)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9503"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = DATX_STR SNX2DD||SNX2MMM||SNX2YYYY ENX2DD||ENX2MMM||ENX2YYYY         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9579"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,1)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = DATXDD||CMTHMM||CYERYYYY                                             
+PARM_NAME = "CIPABARR"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,1)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA9718"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,7)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SMTHDD||SMTHMMM||SMTHYYYY                                            
+PARM_NAME = "MIPAMDIR"                                                          
+CALL READ_PARM                                                                  
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,10)                                        
+INLINE.1 = OVERLAY(DATX_STR,INLINE.1,38)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Monthly"                                                             
+IF  PANSEL = 6 THEN SIGNAL "EXIT"                                               
+/*---------------------------------------*/                                     
+/* PART 7: QUARTERLY PARAMETERS          */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* GET QUARTERLY GLOBALS                 */                                     
+/*                                       */                                     
+"ISPEXEC VGET (SQTRDD SQTRMMM SQTRYYYY)"                                        
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+REPL_STR = DATX_STR||DATX_STR                                                   
+REPL_STR = SQTRDD||SQTRMMM||SQTRYYYY DATX_STR                                   
+/*                                       */                                     
+PARM_NAME = "CIPA0267"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,8)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Quarterly"                                                           
+IF  PANSEL = 7 THEN SIGNAL "EXIT"                                               
+/*---------------------------------------*/                                     
+/* PART 8: ANNUAL PARAMETERS             */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* GET ANNUAL GLOBALS                    */                                     
+/*                                       */                                     
+"ISPEXEC VGET (NMTHMM NYERYYYY SNYRDD SNYRMMM SNYRYYYY)"                        
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+REPL_STR = CYERYYYY||NYERYYYY                                                   
+PARM_NAME = "CIPA0436"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA0257"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,7)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0941"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,7)                                         
+CALL UPDT_PARM                                                                  
+/*                                            */                                
+/* CHANGED 11DEC2003 FOR YEAR END TAX CL095   */                                
+/*                                            */                                
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA0942"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,20)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA942B"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,20)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA942C"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,20)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA942D"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,20)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA0943"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,24)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA943B"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,24)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA943C"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,24)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = SNYRDD||SNYRMMM||SNYRYYYY                                            
+PARM_NAME = "CIPA943D"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,24)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = DATXDD||DATXMMM||DATXYYYY                                            
+PARM_NAME = "CIPA0939"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,12)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = DATXDD||DATXMMM||DATXYYYY                                            
+PARM_NAME = "CIPA9660"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,7)                                         
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,12)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/*  END OF TAX 2003 CHANGES CL095        */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA0944"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATXYYYY,INLINE.2,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/*   PARM NOT FOUND AT ZURICH, CONDITION */                                     
+/*   PRODUCES AN ERROR MESSAGE. COMMENTED*/                                     
+/*   WHILE INVESTIGATED                  */                                     
+/*                                       */                                     
+/*  PARM_NAME = "CIPA0945"               */                                     
+/*  CALL READ_PARM                       */                                     
+/*  INLINE.2 = OVERLAY(DATX_STR,INLINE.2,9) */                                  
+/*  CALL UPDT_PARM                       */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA9700"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,1)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = NMTHMM||NYERYYYY                                                     
+PARM_NAME = "CIPA097B"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+PARM_NAME = "CIPA098B"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = STYRDD||STYRMMM||STYRYYYY                                            
+PARM_NAME = "CIPA0510"                                                          
+CALL READ_PARM                                                                  
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,10)                                        
+INLINE.1 = OVERLAY(DATX_STR,INLINE.1,38)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+REPL_STR = STYRDD||STYRMMM||STYRYYYY                                            
+PARM_NAME = "MIPAYDIR"                                                          
+CALL READ_PARM                                                                  
+INLINE.1 = OVERLAY(REPL_STR,INLINE.1,10)                                        
+INLINE.1 = OVERLAY(DATX_STR,INLINE.1,38)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Annual"                                                              
+IF  PANSEL = 8 THEN SIGNAL "EXIT"                                               
+/*---------------------------------------*/                                     
+/* PART 9: REQUEST PARAMETERS            */                                     
+/*---------------------------------------*/                                     
+PART_9:                                                                         
+/*                                       */                                     
+/* GET REQUEST SELECTION                 */                                     
+/*                                       */                                     
+"ISPEXEC VGET (REQSEL)"                                                         
+/*                                       */                                     
+IF  REQSEL = 1 THEN SIGNAL "PART_9A"                                            
+IF  REQSEL = 2 THEN SIGNAL "PART_9B"                                            
+IF  REQSEL = 3 THEN SIGNAL "PART_9C"                                            
+IF  REQSEL = 4 THEN SIGNAL "PART_9D"                                            
+IF  REQSEL = 5 THEN SIGNAL "PART_9E"                                            
+IF  REQSEL = 6 THEN SIGNAL "PART_9F"                                            
+SIGNAL "EXIT"                                                                   
+/*---------------------------------------*/                                     
+/* PART 9A: POLICY ANALYSIS REPORTING    */                                     
+/*---------------------------------------*/                                     
+PART_9A:                                                                        
+/*                                       */                                     
+/* GET VARIABLES                         */                                     
+/*                                       */                                     
+"ISPEXEC VGET (DATXDD DATXMMM DATXYYYY",                                        
+  "SREQDD SREQMMM SREQYYYY EREQDD EREQMMM EREQYYYY",                            
+  "RSPSDD RSPSMMM RSPSYYYY RSPEDD RSPEMMM RSPEYYYY",                            
+  "RSPNREG RSPRCPT RSPZERO REQSW1 REQSW2 REQSW3 REQSW4 REQSW5",                 
+  "REQSW6 REQSW7 REQSW8 REQSW9 REQSW10 REQSW11 REQSW12 REQSW13",                
+  "REQSW14 REQSW15 REQSW16 REQSW17 REQSW18 REQSW19 REQSW20)"                    
+/*                                       */                                     
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Request"                                                             
+SIGNAL "EXIT"                                                                   
+/*---------------------------------------*/                                     
+/* PART 9B: ASSIGN MICR NUMBERS          */                                     
+/*---------------------------------------*/                                     
+PART_9B:                                                                        
+/*                                       */                                     
+/* GET VARIABLES                         */                                     
+/*                                       */                                     
+"ISPEXEC VGET (MICRS01 MICRE01 MICRS02",                                        
+  "MICRE02 MICRS03 MICRE03 MICRS04 MICRE04 MICRS05",                            
+  "MICRE05 MICRS06 MICRE06 MICRS07 MICRE07 MICRS08",                            
+  "MICRE08 MICRS09 MICRE09 MICRS10 MICRE10 MICRS11",                            
+  "MICRE11 MICRS12 MICRE12 MICRS13 MICRE13 MICRS14",                            
+  "MICRE14 MICRS15 MICRE15)"                                                    
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA0230"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = MICRS01 MICRE01                                                      
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,1)                                         
+REPL_STR = MICRS02 MICRE02                                                      
+INLINE.3 = OVERLAY(REPL_STR,INLINE.3,1)                                         
+REPL_STR = MICRS03 MICRE03                                                      
+INLINE.4 = OVERLAY(REPL_STR,INLINE.4,1)                                         
+REPL_STR = MICRS04 MICRE04                                                      
+INLINE.5 = OVERLAY(REPL_STR,INLINE.5,1)                                         
+REPL_STR = MICRS05 MICRE05                                                      
+INLINE.6 = OVERLAY(REPL_STR,INLINE.6,1)                                         
+REPL_STR = MICRS06 MICRE06                                                      
+INLINE.7 = OVERLAY(REPL_STR,INLINE.7,1)                                         
+REPL_STR = MICRS07 MICRE07                                                      
+INLINE.8 = OVERLAY(REPL_STR,INLINE.8,1)                                         
+REPL_STR = MICRS08 MICRE08                                                      
+INLINE.9 = OVERLAY(REPL_STR,INLINE.9,1)                                         
+REPL_STR = MICRS09 MICRE09                                                      
+INLINE.10 = OVERLAY(REPL_STR,INLINE.10,1)                                       
+REPL_STR = MICRS10 MICRE10                                                      
+INLINE.11 = OVERLAY(REPL_STR,INLINE.11,1)                                       
+REPL_STR = MICRS11 MICRE11                                                      
+INLINE.12 = OVERLAY(REPL_STR,INLINE.12,1)                                       
+REPL_STR = MICRS12 MICRE12                                                      
+INLINE.13 = OVERLAY(REPL_STR,INLINE.13,1)                                       
+REPL_STR = MICRS13 MICRE13                                                      
+INLINE.14 = OVERLAY(REPL_STR,INLINE.14,1)                                       
+REPL_STR = MICRS14 MICRE14                                                      
+INLINE.15 = OVERLAY(REPL_STR,INLINE.15,1)                                       
+REPL_STR = MICRS15 MICRE15                                                      
+INLINE.16 = OVERLAY(REPL_STR,INLINE.16,1)                                       
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Request"                                                             
+SIGNAL "EXIT"                                                                   
+/*---------------------------------------*/                                     
+/* PART 9C: CHEQUE RECONCILIATION REPORT */                                     
+/*---------------------------------------*/                                     
+PART_9C:                                                                        
+/*                                       */                                     
+/* GET VARIABLES                         */                                     
+/*                                       */                                     
+"ISPEXEC VGET (DATXDD DATXMMM DATXYYYY)"                                        
+/*                                       */                                     
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA0271"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+PARM_NAME = "CIPA0273"                                                          
+CALL READ_PARM                                                                  
+INLINE.2 = OVERLAY(DATX_STR,INLINE.2,9)                                         
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Request"                                                             
+SIGNAL "EXIT"                                                                   
+/*---------------------------------------*/                                     
+/* PART 9D: AGENT LICENSE EXPIRY         */                                     
+/*---------------------------------------*/                                     
+PART_9D:                                                                        
+/*                                       */                                     
+/* GET VARIABLES                         */                                     
+/*                                       */                                     
+"ISPEXEC VGET (DATXDD DATXMMM DATXYYYY",                                        
+  "LEXSDD LEXSMMM LEXSYYYY LEXEDD LEXEMMM LEXEYYYY LEXPPROV)"                   
+/*                                       */                                     
+DATX_STR = DATXDD||DATXMMM||DATXYYYY                                            
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA9505"                                                          
+CALL READ_PARM                                                                  
+IF LEXPPROV = "" THEN LEXPPROV = "  "                                           
+INLINE.2 = OVERLAY(LEXPPROV,INLINE.2,19)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Request"                                                             
+SIGNAL "EXIT"                                                                   
+/*---------------------------------------*/                                     
+/* PART 9E: DIRECT SBU IN FORCE BUSINESS */                                     
+/*---------------------------------------*/                                     
+PART_9E:                                                                        
+/*                                       */                                     
+/* GET VARIABLES                         */                                     
+/*                                       */                                     
+"ISPEXEC VGET (NNBLDD NNBLMMM NNBLYYYY",                                        
+  "NNBHDD NNBHMMM NNBHYYYY)"                                                    
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA9548"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = NNBLDD||NNBLMMM||NNBLYYYY NNBHDD||NNBHMMM||NNBHYYYY                  
+INLINE.2 = OVERLAY(REPL_STR,INLINE.2,10)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Request"                                                             
+SIGNAL "EXIT"                                                                   
+/*---------------------------------------*/                                     
+/* PART 9F: STAFF PENSION REPORTING      */                                     
+/*---------------------------------------*/                                     
+PART_9F:                                                                        
+/*                                       */                                     
+/* GET VARIABLES                         */                                     
+/*                                       */                                     
+"ISPEXEC VGET (PENSW1",                                                         
+  "PENDD PENMMM PENYYYY)"                                                       
+/*                                       */                                     
+/* UPDATE PARM MEMBERS                   */                                     
+/*                                       */                                     
+PARM_NAME = "CIPA9710"                                                          
+CALL READ_PARM                                                                  
+REPL_STR = PENSW1                                                               
+INLINE.3 = OVERLAY(REPL_STR,INLINE.3,31)                                        
+REPL_STR = PENDD||PENMMM||PENYYYY                                               
+INLINE.4 = OVERLAY(REPL_STR,INLINE.4,31)                                        
+CALL UPDT_PARM                                                                  
+/*                                       */                                     
+/* EXIT THIS SELECTION                   */                                     
+/*                                       */                                     
+UPDTYPE = "Request"                                                             
+SIGNAL "EXIT"                                                                   
+EXIT:                                                                           
+/*                                       */                                     
+/*  Set PANSEL to exit once updated to   */                                     
+/*  stop an endless loop when executing  */                                     
+/*  the dialog in batch                  */                                     
+/*                                       */                                     
+PANSEL="X"                                                                      
+"ISPEXEC VPUT (PANSEL)"                                                         
+/*                                       */                                     
+/* RESUME NORMAL CONSOLE OPERATION       */                                     
+/*                                       */                                     
+DUMMY = OUTTRAP("OFF")                                                          
+IF ERR_COUNT = 0 THEN DO                                                        
+   "ISPEXEC SETMSG MSG(TAPM007)"                                                
+   "ISPEXEC VPUT (UPDTYPE)"                                                     
+END                                                                             
+ELSE DO                                                                         
+   CALL ERR_TO_SCREEN                                                           
+   "ISPEXEC SETMSG MSG(TAPM011)"                                                
+END                                                                             
+EXIT                                                                            
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/* CALLED PROCEDURES                      */                                    
+/*----------------------------------------*/                                    
+/*                                        */                                    
+/* ALLOCATE AND READ PARAMETER MEMBER     */                                    
+/*                                        */                                    
+DATE_CONV:                                                                      
+/*                                        */                                    
+READ_PARM:                                                                      
+MAX_RC = 0                                                                      
+"ALLOCATE FILE(PARMIN) DATASET('"TAPDSN"("PARM_NAME")') SHR REUSE"              
+IF RC ^= 0 THEN DO                                                              
+   ERR_COUNT = ERR_COUNT + 1                                                    
+   ERR_PARM.ERR_COUNT = PARM_NAME                                               
+   ERR_TYPE.ERR_COUNT = "ALLOC"                                                 
+   ERR_CODE.ERR_COUNT = RC                                                      
+   MAX_RC             = RC                                                      
+END                                                                             
+/*                                        */                                    
+/* DATASET EXISTS, BUT DOES MEMBER?       */                                    
+/*                                        */                                    
+IF MAX_RC = 0 THEN DO                                                           
+   IF SYSDSN("'"TAPDSN"("PARM_NAME")'") ^= "OK" THEN DO                         
+      ERR_COUNT = ERR_COUNT + 1                                                 
+      ERR_PARM.ERR_COUNT = PARM_NAME                                            
+      ERR_TYPE.ERR_COUNT = "SYSDSN"                                             
+      ERR_CODE.ERR_COUNT = 20                                                   
+      MAX_RC             = 20                                                   
+   END                                                                          
+END                                                                             
+IF MAX_RC = 0 THEN DO                                                           
+   "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                                  
+   IF RC ^= 0 THEN DO                                                           
+      ERR_COUNT = ERR_COUNT + 1                                                 
+      ERR_PARM.ERR_COUNT = PARM_NAME                                            
+      ERR_TYPE.ERR_COUNT = "READ"                                               
+      ERR_CODE.ERR_COUNT = RC                                                   
+      MAX_RC             = RC                                                   
+   END                                                                          
+END                                                                             
+RETURN                                                                          
+/*                                        */                                    
+/* UPDATE AND DEALLOCATE PARAMETER MEMBER */                                    
+/*                                        */                                    
+UPDT_PARM:                                                                      
+IF MAX_RC = 0 THEN DO                                                           
+   "EXECIO "INLINE.0" DISKW PARMIN (FINIS STEM INLINE."                         
+   IF RC ^= 0 THEN DO                                                           
+      ERR_COUNT = ERR_COUNT + 1                                                 
+      ERR_PARM.ERR_COUNT = PARM_NAME                                            
+      ERR_TYPE.ERR_COUNT = "WRITE"                                              
+      ERR_CODE.ERR_COUNT = RC                                                   
+      MAX_RC             = RC                                                   
+   END                                                                          
+END                                                                             
+IF MAX_RC = 0 THEN DO                                                           
+   "FREE FILE(PARMIN"                                                           
+   IF RC ^= 0 THEN DO                                                           
+      ERR_COUNT = ERR_COUNT + 1                                                 
+      ERR_PARM.ERR_COUNT = PARM_NAME                                            
+      ERR_TYPE.ERR_COUNT = "FREE"                                               
+      ERR_CODE.ERR_COUNT = RC                                                   
+      MAX_RC             = RC                                                   
+   END                                                                          
+END                                                                             
+RETURN                                                                          
+/*                                        */                                    
+/* COPY REXX TABLES TO ISPF VARS FOR HELP */                                    
+/*                                        */                                    
+ERR_TO_SCREEN:                                                                  
+DO I = 1 TO 20                                                                  
+   IF I > ERR_COUNT THEN DO                                                     
+      INTERPRET "PARM"I" = ''"                                                  
+      INTERPRET "TYPE"I" = ''"                                                  
+      INTERPRET "CODE"I" = ''"                                                  
+   END                                                                          
+   ELSE DO                                                                      
+      INTERPRET "PARM"I" = ERR_PARM.I"                                          
+      INTERPRET "TYPE"I" = ERR_TYPE.I"                                          
+      INTERPRET "CODE"I" = ERR_CODE.I"                                          
+   END                                                                          
+   "ISPEXEC VPUT (PARM"I" TYPE"I" CODE"I")"                                     
+END                                                                             
+RETURN                                                                          

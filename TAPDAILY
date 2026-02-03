@@ -1,0 +1,895 @@
+/*REXX*/                                                                00010000
+ADDRESS "ISPEXEC"                                                       00020000
+"CONTROL ERRORS RETURN"                                                 00030000
+/*-----------------------------------------------------------------*/   00040000
+/* DATE     USERID    DESCRIPTION                                  */   00041000
+/* -----    ------    -----------                                  */   00042000
+/* 22APR03  WONGALA   CREATE QUATERLY START DATE AND MONTH START   */   00043000
+/*                    DATE                                         */   00044000
+/* 26JUL03  SIJARIC   - CHANGED TO DAILY PAC                       */   00045000
+/*          CHAPDOU                                                */   00046000
+/* 17NOV03  SIJARIC   - CHANGED FILE NUMBER CREATION FOR CRC TAPES */   00047000
+/* 04DEC04  SIJARIC   - ALIS CONVERSION - PHASE1 WARRANTY          */   00047120
+/*                      - TAPDAILY CLIST CHANGES TO FIX HIPAC      */   00047220
+/*                        DATE ON CATS LEADCARD CIPA0201           */   00047320
+/*-----------------------------------------------------------------*/   00048000
+/*---------------------------------------*/                             00050000
+/* CATS LEADCARD UPDATE DIALOG           */                             00060000
+/*---------------------------------------*/                             00070000
+/*---------------------------------------*/                             00080000
+/* PART 1: INITIALIZATION                */                             00090000
+/*---------------------------------------*/                             00100000
+RETURN_CODE = 0                                                         00110000
+/*                                       */                             00120000
+/* GET GLOBALS                           */                             00130000
+/*                                       */                             00140000
+"VGET (CURRWKDY CURRDD CURRMMM CURRYYYY PANSEL ENVIR WKDY TAPDSN)"      00150000
+/*                                       */                             00170000
+/* SET UP TABLE OF MAX DAYS PER MONTH    */                             00180000
+/*                                       */                             00190000
+MAXDAYS = "312831303130313130313031"                                    00200000
+/*                                       */                             00210000
+DO I = 1 TO 12                                                          00220000
+   PARSE VAR MAXDAYS MAXDAY.I 3 MAXDAYS                                 00230000
+END                                                                     00240000
+/*                                       */                             00250000
+/* SET UP ALPHA MONTH TABLE              */                             00260000
+/*                                       */                             00270000
+MTHSALPHA = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC"                      00280000
+DO I = 1 TO 12                                                          00290000
+   MTHALPHA.I = SUBSTR(MTHSALPHA,(I - 1) * 3 + 1,3)                     00300000
+END                                                                     00310000
+/*                                       */                             00320000
+DATXDD    = CURRDD                                                      00351000
+DATXMMM   = CURRMMM                                                     00352000
+DATXYYYY  = CURRYYYY                                                    00353000
+/*                                       */                             00440100
+/* SET THE NEXT MONTH END DATE           */                             00440200
+/*                                       */                             00440300
+ENXMYYYY = DATXYYYY                                                     00440400
+EMTHMM = (POS(DATXMMM,MTHSALPHA) - 1) / 3 + 1 + 1                       00440500
+IF EMTHMM > 12 THEN DO                                                  00440600
+   EMTHMM = 1                                                           00440700
+   ENXMYYYY = ENXMYYYY + 1                                              00440800
+END                                                                     00440900
+ENXMMMM  = MTHALPHA.EMTHMM                                              00441000
+ENXMDD   = MAXDAY.EMTHMM                                                00441100
+/*                                       */                             00441300
+/* SET THE CURRENT MONTH END DATE        */                             00441400
+/*                                       */                             00441500
+EMTHYYYY = DATXYYYY                                                     00441600
+EMTHMM = (POS(DATXMMM,MTHSALPHA) - 1) / 3 + 1                           00441700
+IF EMTHMM > 12 THEN DO                                                  00441800
+   EMTHMM = 1                                                           00441900
+   EMTHYYYY = EMTHYYYY + 1                                              00442000
+END                                                                     00442100
+EMTHMMM  = MTHALPHA.EMTHMM                                              00442200
+EMTHDD   = MAXDAY.EMTHMM                                                00442300
+/*                                       */                             00443000
+/* SET UP THE HOLIDAY TABLE              */                             00450000
+/*                                       */                             00460000
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(HOLIDAYS)') SHR REUSE"00470000
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                 00480000
+J = 0                                                                   00490000
+HOLI_YR = '9999'                                 /* NOT END OF TABLE */ 00500000
+DO I = 6 TO 35                                                          00510000
+   IF HOLI_YR = '0000' THEN NOP                  /* END OF TABLE */     00520000
+   ELSE DO                                                              00530000
+      J = J + 1                                                         00540000
+      PARSE VAR INLINE.I 1 HOLI_YR.J +4                                 00550000
+      PARSE VAR INLINE.I 6 HOLI_MO.J +2                                 00560000
+      PARSE VAR INLINE.I 9 HOLI_DY.J +2                                 00570000
+   END                                                                  00580000
+END                                                                     00590000
+HOLI_MAX = J                                                            00600000
+ADDRESS TSO "FREE FILE(PARMIN)"                                         00610000
+/*                                       */                             00620000
+/* GET THE LAST RUN DATES AND SAVE ORIG  */                             00630000
+/*                                       */                             00640000
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(CIPA0201)') SHR REUSE"00650000
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                 00660000
+PARSE VAR INLINE.3  8 CLSTDD   +2                                       00670000
+PARSE VAR INLINE.3 10 CLSTMMM  +3                                       00680000
+PARSE VAR INLINE.3 13 CLSTYYYY +4                                       00690000
+PARSE VAR INLINE.3 18 CLSTDD_ORIG   +2                                  00700000
+PARSE VAR INLINE.3 20 CLSTMMM_ORIG  +3                                  00710000
+PARSE VAR INLINE.3 23 CLSTYYYY_ORIG +4                                  00720000
+PARSE VAR INLINE.6  8 LBILNONE_ORIG +4                                  00730000
+PARSE VAR INLINE.6  8 LBILDD_ORIG   +2                                  00740000
+PARSE VAR INLINE.6 10 LBILMMM_ORIG  +3                                  00750000
+PARSE VAR INLINE.6 13 LBILYYYY_ORIG +4                                  00760000
+PARSE VAR INLINE.6 18 HBILNONE_ORIG +4                                  00770000
+PARSE VAR INLINE.6 18 HBILDD_ORIG   +2                                  00780000
+PARSE VAR INLINE.6 20 HBILMMM_ORIG  +3                                  00790000
+PARSE VAR INLINE.6 23 HBILYYYY_ORIG +4                                  00800000
+PARSE VAR INLINE.6 28 LPACNONE_ORIG +4                                  00810000
+PARSE VAR INLINE.6 28 LPACDD_ORIG   +2                                  00820000
+PARSE VAR INLINE.6 30 LPACMMM_ORIG  +3                                  00830000
+PARSE VAR INLINE.6 33 LPACYYYY_ORIG +4                                  00840000
+PARSE VAR INLINE.6 38 HPACNONE_ORIG +4                                  00850000
+PARSE VAR INLINE.6 38 HPACDD_ORIG   +2                                  00860000
+PARSE VAR INLINE.6 40 HPACMMM_ORIG  +3                                  00870000
+PARSE VAR INLINE.6 43 HPACYYYY_ORIG +4                                  00880000
+PARSE VAR INLINE.6 48 HANNNONE_ORIG +4                                  00890000
+PARSE VAR INLINE.6 48 HANNDD_ORIG   +2                                  00900000
+PARSE VAR INLINE.6 50 HANNMMM_ORIG  +3                                  00910000
+PARSE VAR INLINE.6 53 HANNYYYY_ORIG +4                                  00920000
+PARSE VAR INLINE.6 58 HCLMNONE_ORIG +4                                  00930000
+PARSE VAR INLINE.6 58 HCLMDD_ORIG   +2                                  00940000
+PARSE VAR INLINE.6 60 HCLMMMM_ORIG  +3                                  00950000
+PARSE VAR INLINE.6 63 HCLMYYYY_ORIG +4                                  00960000
+PARSE VAR INLINE.12  8 LAST_PACDD   +2                                  00970000
+PARSE VAR INLINE.12 10 LAST_PACMMM  +3                                  00980000
+PARSE VAR INLINE.12 13 LAST_PACYYYY +4                                  00990000
+PARSE VAR INLINE.12 18 LAST_ANNDD   +2                                  01000000
+PARSE VAR INLINE.12 20 LAST_ANNMMM  +3                                  01010000
+PARSE VAR INLINE.12 23 LAST_ANNYYYY +4                                  01020000
+ADDRESS TSO "FREE FILE(PARMIN)"                                         01030000
+/*                                       */                             01040000
+/* GET THE LAST PAC COUNTER & SAVE ORIG  */                             01050000
+/*                                       */                             01060000
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(CIPA0260)') SHR REUSE"01070000
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                 01080000
+PARSE VAR INLINE.3 22 PACTAPEC +4                                       01090000
+ADDRESS TSO "FREE FILE(PARMIN)"                                         01100000
+PACTAPEC_ORIG = PACTAPEC                                                01110000
+PAC_DONE_ONCE = "N"                                                     01120000
+/*                                       */                             01130000
+/* GET THE LAST EFT COUNTER & SAVE ORIG  */                             01140000
+/*                                       */                             01150000
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(CIPA0265)') SHR REUSE"01160000
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                 01170000
+PARSE VAR INLINE.2 22 EFTTAPEC +4                                       01180000
+ADDRESS TSO "FREE FILE(PARMIN)"                                         01190000
+EFTTAPEC_ORIG = EFTTAPEC                                                01200000
+EFT_DONE_ONCE = "N"                                                     01210000
+/*                                       */                             01220000
+/* GET THE LAST CRC COUNTER & SAVE ORIG  */                             01230000
+/*                                       */                             01240000
+ADDRESS TSO "ALLOC FILE(PARMIN) DATASET('"TAPDSN"(CIPA9543)') SHR REUSE"01250000
+ADDRESS TSO "EXECIO * DISKR PARMIN (FINIS STEM INLINE."                 01260000
+PARSE VAR INLINE.2 53 CRCFLAG  +1                                       01261000
+PARSE VAR INLINE.3 22 CRCTAPEC +4                                       01270000
+ADDRESS TSO "FREE FILE(PARMIN)"                                         01280000
+CRCTAPEC_ORIG = CRCTAPEC                                                01290000
+CRC_DONE_ONCE = "N"                                                     01300000
+/*                                       */                             01310000
+CMTHSUB   = (POS(CURRMMM,MTHSALPHA) - 1) / 3 + 1                        01320000
+/*                                       */                             01330000
+/* DEFAULT THE NEXT WORKING DATE         */                             01340000
+/*                                       */                             01350000
+WORKDD = CURRDD                                                         01360000
+WORKMMM = CURRMMM                                                       01370000
+WORKYYYY = CURRYYYY                                                     01380000
+WORKWKDY = WKDY                                                         01390000
+CALL NEXT_WORKDAY                                                       01400000
+NXWKDD = WORKDD                                                         01410000
+NXWKMM  = WORKMM                                                        01420000
+NXWKMMM = WORKMMM                                                       01430000
+NXWKYYYY = WORKYYYY                                                     01440000
+NXWKWKDY = WORKWKDY                                                     01450000
+/*                                       */                             01460000
+/* DEFAULT THE AUTOMATIC DATE            */                             01470000
+/*                                       */                             01480000
+CAUTDD    = CURRDD                                                      01490000
+CAUTMMM   = CURRMMM                                                     01500000
+CAUTYYYY  = CURRYYYY                                                    01510000
+IF PANSEL > "5" THEN DO          /* MTHLY TO YRLY JOBS, USE THE LAST */ 01520000
+    CAUTDD = MAXDAY.CMTHSUB      /* DAY OF THE CURRENT MONTH         */ 01530000
+    WORKDD = CAUTDD                                                     01540000
+    WORKMMM = CAUTMMM                                                   01550000
+    WORKYYYY = CAUTYYYY                                                 01560000
+    WORKWKDY = WKDY + CAUTDD - CURRDD                                   01570000
+    IF WORKWKDY > 6 THEN WORKWKDY = WORKWKDY - 7                        01580000
+    IF WORKWKDY > 6 THEN WORKWKDY = WORKWKDY - 7                        01590000
+    IF WORKWKDY > 6 THEN WORKWKDY = WORKWKDY - 7                        01600000
+    IF WORKWKDY > 6 THEN WORKWKDY = WORKWKDY - 7                        01610000
+    CALL NEXT_WORKDAY                                                   01620000
+    NXWKDD = WORKDD                                                     01630000
+    NXWKMM  = WORKMM                                                    01640000
+    NXWKMMM = WORKMMM                                                   01650000
+    NXWKYYYY = WORKYYYY                                                 01660000
+    NXWKWKDY = WORKWKDY                                                 01670000
+END                                                                     01680000
+ELSE DO                                                                 01690000
+    IF NXWKYYYY > CURRYYYY THEN  /* SET TO THE DAY PRIOR TO THE NEXT */ 01700000
+       CAUTDD = MAXDAY.CMTHSUB   /* BUSINESS DAY, UP TO MONTH-END    */ 01710000
+    ELSE                                                                01720000
+    IF NXWKMM > CMTHSUB THEN                                            01730000
+       CAUTDD = MAXDAY.CMTHSUB                                          01740000
+    ELSE DO                                                             01750000
+       CAUTMM  = NXWKMM                                                 01760000
+       CAUTMMM = NXWKMMM                                                01770000
+       CAUTYYYY = NXWKYYYY                                              01780000
+       CAUTDD = NXWKDD - 1                                              01790000
+       IF CAUTDD = 0 THEN DO                                            01800000
+          CAUTMM = CAUTMM - 1                                           01810000
+          IF CAUTMM = 0 THEN DO                                         01820000
+             CAUTMM = 12                                                01830000
+             CAUTYYYY = CAUTYYYY - 1                                    01840000
+          END                                                           01850000
+          CAUTMMM = MTHALPHA.CAUTMM                                     01860000
+          CAUTDD = MAXDAY.CAUTMM                                        01870000
+       END                                                              01880000
+    END                                                                 01890000
+END                                                                     01900000
+/*                                       */                             01910000
+/* LAST AUTO DATE - IF CURR AUTO DATE =  */                             01920000
+/* LAST AUTO DATE, THEN RETAIN ORIG AUTO */                             01930000
+/* DATE                                  */                             01940000
+/*                                       */                             01950000
+RETAIN_ORIG = "N"                                                       01960000
+IF CLSTDD = CAUTDD & CLSTMMM = CAUTMMM & CLSTYYYY = CAUTYYYY THEN DO    01970000
+   CLSTDD    = CLSTDD_ORIG                                              01980000
+   CLSTMMM   = CLSTMMM_ORIG                                             01990000
+   CLSTYYYY  = CLSTYYYY_ORIG                                            02000000
+   RETAIN_ORIG = "Y"                                                    02010000
+END                                                                     02020000
+/*                                       */                             02030000
+/* DEFAULT THE CURRENT DATE TO AUTO DATE */                             02040000
+/*                                       */                             02050000
+DATXDD    = CAUTDD                                                      02060000
+DATXMMM   = CAUTMMM                                                     02070000
+DATXYYYY  = CAUTYYYY                                                    02080000
+/*                                       */                             02090000
+/* DEFAULT THE BILLING INFO              */                             02100000
+/*                                       */                             02110000
+LBILDD    = ''                                                          02120000
+LBILMMM   = ''                                                          02130000
+LBILYYYY  = ''                                                          02140000
+LBILNONE  = 'NONE'                                                      02150000
+HBILDD    = ''                                                          02160000
+HBILMMM   = ''                                                          02170000
+HBILYYYY  = ''                                                          02180000
+HBILNONE  = 'NONE'                                                      02190000
+LPACDD    = ''                                                          02200000
+LPACMMM   = ''                                                          02210000
+LPACYYYY  = ''                                                          02220000
+LPACNONE  = 'NONE'                                                      02230000
+HPACDD    = ''                                                          02240000
+HPACMMM   = ''                                                          02250000
+HPACYYYY  = ''                                                          02260000
+HPACNONE  = 'NONE'                                                      02270000
+HANNDD    = ''                                                          02280000
+HANNMMM   = ''                                                          02290000
+HANNYYYY  = ''                                                          02300000
+HANNNONE  = 'NONE'                                                      02310000
+HCLMDD    = ''                                                          02320000
+HCLMMMM   = ''                                                          02330000
+HCLMYYYY  = ''                                                          02340000
+HCLMNONE  = 'NONE'                                                      02350000
+/*                                       */                             02360000
+IF RETAIN_ORIG = "Y" THEN SIGNAL "RET_BILL"                             02370012
+/*                                       */                             02380000
+/*  DIRECT BILL IS 22 DAYS IN ADVANCE    */                             02390000
+/*                                       */                             02400000
+LBILDD    = CAUTDD                                                      02410000
+LBILMMM   = CAUTMMM                                                     02420000
+LBILYYYY  = CAUTYYYY                                                    02430000
+LBILNONE  = ' '                                                         02440000
+HBILDD    = CAUTDD + 22                                                 02450000
+HBILMMM   = CAUTMMM                                                     02460000
+HBILYYYY  = CAUTYYYY                                                    02470000
+HBILNONE  = ' '                                                         02480000
+IF HBILDD > MAXDAY.CMTHSUB THEN DO                                      02490000
+   HBILDD = HBILDD - MAXDAY.CMTHSUB                                     02500000
+   HBILMM = CMTHSUB + 1                                                 02510000
+   IF HBILMM > 12 THEN DO                                               02520000
+      HBILMM = 1                                                        02530000
+      HBILYYYY = HBILYYYY + 1                                           02540000
+   END                                                                  02550000
+   HBILMMM = MTHALPHA.HBILMM                                            02560000
+END                                                                     02570000
+LBILDD = RIGHT(LBILDD,2,"0")                                            02580000
+HBILDD = RIGHT(HBILDD,2,"0")                                            02590000
+/*                                       */                             02600000
+/*  PAC IS SCHEDULED SUCH THAT THERE IS  */                             02610000
+/*  ONE BUSINESS DAY BETWEEN THE RUN DT  */                             02620000
+/*  AND THE DEPOSIT DAYS OF 01, 05, 10,  */                             02630000
+/*  15, 20 AND 25.                       */                             02640000
+/*  CREDIT CARD (CRC) MATCHES PAC TIMING */                             02650000
+/*                                       */                             02660000
+/*  NXWKDATE IS THE NEXT WORKING DATE    */                             02670000
+/*  WORKDATE IS THE 2ND NEXT WORKING DATE*/                             02680000
+/*                                       */                             02690000
+NXWKDD = RIGHT(NXWKDD,2,"0")                                            02700000
+NXWKMM = RIGHT(NXWKMM,2,"0")                                            02710000
+NXWKDATE = NXWKYYYY||NXWKMM||NXWKDD                                     02720000
+WORKDD = NXWKDD                                                         02730000
+WORKMMM = NXWKMMM                                                       02740000
+WORKYYYY = NXWKYYYY                                                     02750000
+WORKWKDY = NXWKWKDY                                                     02760000
+CALL NEXT_WORKDAY                                                       02770000
+WORKDD = RIGHT(WORKDD,2,"0")                                            02780000
+WORKMM = RIGHT(WORKMM,2,"0")                                            02790000
+WORKDATE = WORKYYYY||WORKMM||WORKDD                                     02800000
+/*                                       */                             02810000
+/* CALCULATE THE NEXT 2 DEPOSIT DATES    */                             02820000
+/*                                       */                             02830000
+/* DEPDATE IS THE NEXT TRUE DEP DATE     */                             02840000
+/* DEP2DATE IS THE DEP DATE PRIOR TO THE */                             02850000
+/*          NEXT TRUE DEP DATE           */                             02860000
+/*                                       */                             02870000
+DEPDD   = LAST_PACDD                                                    02880000
+DEPMMM  = LAST_PACMMM                                                   02890000
+DEPYYYY = LAST_PACYYYY                                                  02900000
+LAST_PACMM  = (POS(LAST_PACMMM,MTHSALPHA) - 1) / 3 + 1                  02910000
+LAST_PACMM = RIGHT(LAST_PACMM,2,"0")                                    02920000
+LASTDATE = LAST_PACYYYY||LAST_PACMM||LAST_PACDD                         02930000
+DEP2DATE = LASTDATE                                                     02940000
+NXT_PAC:                                                                02950000
+CALL NEXT_PACDATE                                                       02960000
+   DEP2DATE = DEPDATE                                                   02961000
+   DEP2DD   = DEPDD                                                     02962000
+   DEP2MMM  = DEPMMM                                                    02963000
+   DEP2YYYY = DEPYYYY                                                   02964000
+/*                                       */                             02970000
+/* IF THERE IS ONLY ONE WORKING DAY      */                             02980000
+/* BEFORE THE NEXT DEP DATE, SCHEDULE PAC*/                             02990000
+/* TO NEXT DATE LESS ONE DAY             */                             03000000
+/*                                       */                             03010000
+IF NXWKDATE < DEPDATE & WORKDATE ^< DEPDATE THEN DO                     03020000
+   LPACDD    = CAUTDD                                                   03030000
+   LPACMMM   = CAUTMMM                                                  03040000
+   LPACYYYY  = CAUTYYYY                                                 03050000
+   LPACNONE  = ' '                                                      03060000
+   CALL NEXT_PACDATE                                                    03070000
+   DEPDD    = DEPDD - 1                                                 03080000
+   IF DEPDD = 0 THEN DO                                                 03090000
+      DEPMM = DEPMM - 1                                                 03100000
+      IF DEPMM = 0 THEN DO                                              03110000
+         DEPMM = 12                                                     03120000
+         DEPYYYY = DEPYYYY - 1                                          03130000
+      END                                                               03140000
+      DEPMMM = MTHALPHA.DEPMM                                           03150000
+      DEPDD = MAXDAY.DEPMM                                              03160000
+   END                                                                  03170000
+   HPACDD    = DEPDD                                                    03180000
+   HPACMMM   = DEPMMM                                                   03190000
+   HPACYYYY  = DEPYYYY                                                  03200000
+   HPACNONE  = ' '                                                      03210000
+   LPACDD    = RIGHT(LPACDD,2,"0")                                      03220000
+   HPACDD    = RIGHT(HPACDD,2,"0")                                      03230000
+END                                                                     03240000
+ELSE DO                                                                 03250000
+/*                                       */                             03260000
+/* IF THE PRIOR DEP DATE HAS BEEN MISSED */                             03270000
+/* THEN FORCE A PAC TO BE SCHEDULED TO   */                             03280000
+/* NEXT DATE LESS ONE DAY                */                             03290000
+/*                                       */                             03300000
+IF DEP2DATE > LASTDATE THEN DO                                          03310000
+   LPACDD    = CAUTDD                                                   03320000
+   LPACMMM   = CAUTMMM                                                  03330000
+   LPACYYYY  = CAUTYYYY                                                 03340000
+   LPACNONE  = ' '                                                      03350000
+   DEPDD    = DEPDD - 1                                                 03360000
+   IF DEPDD = 0 THEN DO                                                 03370000
+      DEPMM = DEPMM - 1                                                 03380000
+      IF DEPMM = 0 THEN DO                                              03381000
+         DEPMM = 12                                                     03382000
+         DEPYYYY = DEPYYYY - 1                                          03383000
+      END                                                               03384000
+      DEPMMM = MTHALPHA.DEPMM                                           03385000
+      DEPDD = MAXDAY.DEPMM                                              03386000
+   END                                                                  03387000
+   HPACDD    = DEPDD                                                    03388000
+   HPACMMM   = DEPMMM                                                   03389000
+   HPACYYYY  = DEPYYYY                                                  03389100
+   HPACNONE  = ' '                                                      03389200
+   LPACDD    = RIGHT(LPACDD,2,"0")                                      03389300
+   HPACDD    = RIGHT(HPACDD,2,"0")                                      03389400
+END                                                                     03389500
+ELSE DO                                                                 03389700
+   LPACDD    = CURRDD                                                   03390000
+   LPACMMM   = CURRMMM                                                  03400000
+   LPACYYYY  = CURRYYYY                                                 03410000
+   LPACNONE  = ' '                                                      03420000
+   HPACDD    = DEPDD                                                    03530000
+   HPACMMM   = DEPMMM                                                   03540000
+   HPACYYYY  = DEPYYYY                                                  03550000
+   HPACNONE  = ' '                                                      03560000
+   LPACDD    = RIGHT(LPACDD,2,"0")                                      03570000
+   HPACDD    = RIGHT(HPACDD,2,"0")                                      03580000
+END                                                                     03602000
+END                                                                     03603000
+/*                                       */                             03610000
+/*  ANNUITY PYMTS ARE 10 DAYS IN ADVANCE */                             03620000
+/*                                       */                             03630000
+FANNDD    = CAUTDD + 10                                                 03640000
+FANNMM    = CMTHSUB                                                     03650000
+FANNYYYY  = CAUTYYYY                                                    03660000
+IF FANNDD > MAXDAY.CMTHSUB THEN DO                                      03670000
+   FANNDD = FANNDD - MAXDAY.CMTHSUB                                     03680000
+   FANNMM = CMTHSUB + 1                                                 03690000
+   IF FANNMM > 12 THEN DO                                               03700000
+      FANNMM = 1                                                        03710000
+      FANNYYYY = FANNYYYY + 1                                           03720000
+   END                                                                  03730000
+END                                                                     03740000
+FANNDD = RIGHT(FANNDD,2,"0")                                            03750000
+FANNMM = RIGHT(FANNMM,2,"0")                                            03760000
+FANNDATE = FANNYYYY||FANNMM||FANNDD                                     03770000
+/*                                       */                             03780000
+/* CALCULATE THE NEXT 2 DEPOSIT DATES    */                             03790000
+/*                                       */                             03800000
+/* DEPDATE IS THE NEXT TRUE DEP DATE     */                             03810000
+/* DEP2DATE IS THE DEP DATE PRIOR TO THE */                             03820000
+/*          NEXT TRUE DEP DATE           */                             03830000
+/*                                       */                             03840000
+DEPDD   = LAST_ANNDD                                                    03850000
+DEPMMM  = LAST_ANNMMM                                                   03860000
+DEPYYYY = LAST_ANNYYYY                                                  03870000
+LAST_ANNMM  = (POS(LAST_ANNMMM,MTHSALPHA) - 1) / 3 + 1                  03880000
+LAST_ANNMM = RIGHT(LAST_ANNMM,2,"0")                                    03890000
+LASTDATE = LAST_ANNYYYY||LAST_ANNMM||LAST_ANNDD                         03900000
+DEP2DATE = LASTDATE                                                     03910000
+NXT_ANN:                                                                03920000
+CALL NEXT_ANNDATE                                                       03930000
+IF DEPDATE < FANNDATE THEN DO                                           03940000
+   DEP2DATE = DEPDATE                                                   03950000
+   DEP2DD   = DEPDD                                                     03960000
+   DEP2MMM  = DEPMMM                                                    03970000
+   DEP2YYYY = DEPYYYY                                                   03980000
+   SIGNAL "NXT_ANN"                                                     03990000
+END                                                                     04000000
+/*                                       */                             04010000
+/* IF WE ARE ON A DEPOSIT DATE, SCHED IT */                             04020000
+/* TO NEXT DATE LESS ONE DAY             */                             04030000
+/*                                       */                             04040000
+IF DEPDATE = FANNDATE THEN DO                                           04050000
+   CALL NEXT_ANNDATE                                                    04060000
+   DEPDD    = DEPDD - 1                                                 04070000
+   IF DEPDD = 0 THEN DO                                                 04080000
+      DEPMM = DEPMM - 1                                                 04090000
+      IF DEPMM = 0 THEN DO                                              04100000
+         DEPMM = 12                                                     04110000
+         DEPYYYY = DEPYYYY - 1                                          04120000
+      END                                                               04130000
+      DEPMMM = MTHALPHA.DEPMM                                           04140000
+      DEPDD = MAXDAY.DEPMM                                              04150000
+   END                                                                  04160000
+   HANNDD    = DEPDD                                                    04170000
+   HANNMMM   = DEPMMM                                                   04180000
+   HANNYYYY  = DEPYYYY                                                  04190000
+   HANNNONE  = ' '                                                      04200000
+   HANNDD    = RIGHT(HANNDD,2,"0")                                      04210000
+END                                                                     04220000
+ELSE DO                                                                 04230000
+/*                                       */                             04240000
+/* IF THE PRIOR DEP DATE HAS BEEN MISSED */                             04250000
+/* THEN FORCE ANNTY TO BE SCHEDULED TO   */                             04260000
+/* NEXT DATE LESS ONE DAY                */                             04270000
+/*                                       */                             04280000
+IF DEP2DATE > LASTDATE THEN DO                                          04290000
+   DEPDD    = DEPDD - 1                                                 04300000
+   IF DEPDD = 0 THEN DO                                                 04310000
+      DEPMM = DEPMM - 1                                                 04320000
+      IF DEPMM = 0 THEN DO                                              04330000
+         DEPMM = 12                                                     04340000
+         DEPYYYY = DEPYYYY - 1                                          04350000
+      END                                                               04360000
+      DEPMMM = MTHALPHA.DEPMM                                           04370000
+      DEPDD = MAXDAY.DEPMM                                              04380000
+   END                                                                  04390000
+   HANNDD    = DEPDD                                                    04400000
+   HANNMMM   = DEPMMM                                                   04410000
+   HANNYYYY  = DEPYYYY                                                  04420000
+   HANNNONE  = ' '                                                      04430000
+   HANNDD    = RIGHT(HANNDD,2,"0")                                      04440000
+END                                                                     04450000
+END                                                                     04460000
+/*                                       */                             04470000
+SIGNAL "DEF_PAC"                                                        04480000
+/*                                       */                             04490000
+RET_BILL:                                                               04500000
+IF RETAIN_ORIG = "Y" & LBILNONE_ORIG ^= "NONE" THEN DO                  04510000
+   LBILDD    = LBILDD_ORIG                                              04520000
+   LBILMMM   = LBILMMM_ORIG                                             04530000
+   LBILYYYY  = LBILYYYY_ORIG                                            04540000
+   LBILNONE  = ' '                                                      04550000
+END                                                                     04560000
+IF RETAIN_ORIG = "Y" & HBILNONE_ORIG ^= "NONE" THEN DO                  04570000
+   HBILDD    = HBILDD_ORIG                                              04580000
+   HBILMMM   = HBILMMM_ORIG                                             04590000
+   HBILYYYY  = HBILYYYY_ORIG                                            04600000
+   HBILNONE  = ' '                                                      04610000
+END                                                                     04620000
+IF RETAIN_ORIG = "Y" & LPACNONE_ORIG ^= "NONE" THEN DO                  04630000
+   LPACDD    = LPACDD_ORIG                                              04640000
+   LPACMMM   = LPACMMM_ORIG                                             04650000
+   LPACYYYY  = LPACYYYY_ORIG                                            04660000
+   LPACNONE  = ' '                                                      04670000
+END                                                                     04680000
+IF RETAIN_ORIG = "Y" & HPACNONE_ORIG ^= "NONE" THEN DO                  04690000
+   HPACDD    = HPACDD_ORIG                                              04700000
+   HPACMMM   = HPACMMM_ORIG                                             04710000
+   HPACYYYY  = HPACYYYY_ORIG                                            04720000
+   HPACNONE  = ' '                                                      04730000
+END                                                                     04740000
+IF RETAIN_ORIG = "Y" & HANNNONE_ORIG ^= "NONE" THEN DO                  04750000
+   HANNDD    = HANNDD_ORIG                                              04760000
+   HANNMMM   = HANNMMM_ORIG                                             04770000
+   HANNYYYY  = HANNYYYY_ORIG                                            04780000
+   HANNNONE  = ' '                                                      04790000
+END                                                                     04800000
+IF RETAIN_ORIG = "Y" & HCLMNONE_ORIG ^= "NONE" THEN DO                  04810000
+   HCLMDD    = HCLMDD_ORIG                                              04820000
+   HCLMMMM   = HCLMMMM_ORIG                                             04830000
+   HCLMYYYY  = HCLMYYYY_ORIG                                            04840000
+   HCLMNONE  = ' '                                                      04850000
+END                                                                     04860000
+/*                                       */                             04870000
+/* DEFAULT THE PAC / EFT TAPE INFO       */                             04880000
+/*                                       */                             04890000
+DEF_PAC:                                                                04900000
+IF RETAIN_ORIG = "N" & HPACNONE ^= "NONE" THEN                          04910000
+     PACTAPEC = PACTAPEC + 1                                            04920000
+IF RETAIN_ORIG = "N" & HANNNONE ^= "NONE" THEN                          04930000
+     EFTTAPEC = EFTTAPEC + 1                                            04940000
+IF RETAIN_ORIG = "N" & HPACNONE ^= "NONE" THEN                          04950000
+   IF CRCFLAG = 'N' THEN DO                                             04961000
+     CRCTAPEC = CRCTAPEC                                                04961100
+   END                                                                  04963000
+   IF CRCFLAG = 'Y' THEN DO                                             04964000
+     CRCTAPEC = CRCTAPEC + 1                                            04964100
+   END                                                                  04965100
+PACTAPEC = RIGHT(PACTAPEC,4,"0")                                        04970000
+EFTTAPEC = RIGHT(EFTTAPEC,4,"0")                                        04980000
+CRCTAPEC = RIGHT(CRCTAPEC,4,"0")                                        04990000
+CRCFLAG  = RIGHT(CRCFLAG,1,"0")                                         04991000
+PACTAPEF  = "000000"                                                    05000000
+EFTTAPEF  = "000000"                                                    05010000
+CRCTAPEF  = "000000"                                                    05020000
+/*                                       */                             05030000
+/* DEFAULT THE START OF CURRENT MONTH    */                             05040000
+/*                                       */                             05050000
+SMTHDD    = "01"                                                        05060000
+SMTHMMM   = CURRMMM                                                     05070000
+SMTHYYYY  = CURRYYYY                                                    05080000
+/*                                       */                             05090000
+/*                                       */                             05090100
+/* DEFAULT THE QUARTER START DATE        */                             05090200
+/*                                       */                             05090300
+CMTHSUB   = (POS(CURRMMM,MTHSALPHA) - 1) / 3 + 1                        05090400
+SQTRDD = "01"                                                           05090500
+SUB = (CMTHSUB - 1) % 3 * 3 + 1 /* SUB BECOMES 1 IN 1ST QUARTER, 4 IN */05090600
+SQTRMMM = MTHALPHA.SUB          /* 2ND QTR, 7 IN 3RD, AND 10 IN 4TH.  */05090700
+SQTRYYYY = DATXYYYY                                                     05090800
+/*                                       */                             05091000
+/* DEFAULT THE START OF YEAR DATE        */                             05092000
+/*                                       */                             05093000
+STYRDD    = "01"                                                        05094000
+STYRMMM   = "JAN"                                                       05095000
+STYRYYYY  = CURRYYYY                                                    05096000
+/*                                       */                             05097000
+/* DEFAULT THE CURRENT MONTH & YEAR      */                             05100000
+/*                                       */                             05110000
+CURRMM    = (POS(CURRMMM,MTHSALPHA) - 1) / 3 + 1                        05120000
+CMTHMM    = RIGHT(CURRMM,2,"0")                                         05130000
+CYERYYYY  = CURRYYYY                                                    05140000
+/*                                       */                             05150000
+"VPUT (CURRMM)"                                                         05160014
+/*---------------------------------------*/                             05170000
+/* PART 2: BRING UP THE DAILY PANEL      */                             05180000
+/*---------------------------------------*/                             05190000
+CRSRFLD = "DATXDD"                                                      05200000
+REDISPLAY:                                                              05210000
+"DISPLAY PANEL(TAPPDAY)"                                                05220000
+IF RC ^= 0 THEN DO                                                      05230000
+   "SETMSG MSG(TAPM006)"                                                05240000
+   RETURN_CODE = 1                                                      05250000
+   SIGNAL "EXIT"                                                        05260000
+END                                                                     05270000
+/*----------------------------------------*/                            05360000
+/* PART 3: EDITING NOT DONE IN PANEL      */                            05370000
+/*----------------------------------------*/                            05380000
+/*                                        */                            05390000
+/* DAY OF THE MONTH                       */                            05400000
+/*                                        */                            05410000
+DATXMM = (POS(DATXMMM,MTHSALPHA) - 1) / 3 + 1                           05420000
+IF DATXDD > MAXDAY.DATXMM THEN DO                                       05430000
+   "SETMSG MSG(TAPM000)"                                                05440000
+   CRSRFLD = "DATXDD"                                                   05450000
+   SIGNAL "REDISPLAY"                                                   05460000
+END                                                                     05470000
+/*                                        */                            05480000
+EMTHMM = (POS(ENXMMMM,MTHSALPHA) - 1) / 3 + 1                           05481000
+IF ENXMDD ^= MAXDAY.EMTHMM THEN DO                                      05482000
+   "SETMSG MSG(TAPM000)"                                                05483000
+   CRSRFLD = "ENXMDD"                                                   05484000
+   SIGNAL "REDISPLAY"                                                   05485000
+END                                                                     05486000
+/*                                        */                            05487000
+NXWKMM = (POS(NXWKMMM,MTHSALPHA) - 1) / 3 + 1                           05490000
+IF NXWKDD > MAXDAY.NXWKMM THEN DO                                       05500000
+   "SETMSG MSG(TAPM000)"                                                05510000
+   CRSRFLD = "NXWKDD"                                                   05520000
+   SIGNAL "REDISPLAY"                                                   05530000
+END                                                                     05540000
+/*                                        */                            05550000
+CAUTMM = (POS(CAUTMMM,MTHSALPHA) - 1) / 3 + 1                           05560000
+IF CAUTDD > MAXDAY.CAUTMM THEN DO                                       05570000
+   "SETMSG MSG(TAPM000)"                                                05580000
+   CRSRFLD = "CAUTDD"                                                   05590000
+   SIGNAL "REDISPLAY"                                                   05600000
+END                                                                     05610000
+/*                                        */                            05620000
+CLSTMM = (POS(CLSTMMM,MTHSALPHA) - 1) / 3 + 1                           05630000
+IF CLSTDD > MAXDAY.CLSTMM THEN DO                                       05640000
+   "SETMSG MSG(TAPM000)"                                                05650000
+   CRSRFLD = "CLSTDD"                                                   05660000
+   SIGNAL "REDISPLAY"                                                   05670000
+END                                                                     05680000
+/*                                        */                            05690000
+STYRMM = (POS(STYRMMM,MTHSALPHA) - 1) / 3 + 1                           05700000
+IF STYRDD > MAXDAY.STYRMM THEN DO                                       05710000
+   "SETMSG MSG(TAPM000)"                                                05720000
+   CRSRFLD = "STYRDD"                                                   05730000
+   SIGNAL "REDISPLAY"                                                   05740000
+END                                                                     05750000
+/*                                        */                            05760000
+LBILMM = (POS(LBILMMM,MTHSALPHA) - 1) / 3 + 1                           05770000
+IF LBILDD > MAXDAY.LBILMM THEN DO                                       05780000
+   "SETMSG MSG(TAPM000)"                                                05790000
+   CRSRFLD = "LBILDD"                                                   05800000
+   SIGNAL "REDISPLAY"                                                   05810000
+END                                                                     05820000
+/*                                        */                            05830000
+HBILMM = (POS(HBILMMM,MTHSALPHA) - 1) / 3 + 1                           05840000
+IF HBILDD > MAXDAY.HBILMM THEN DO                                       05850000
+   "SETMSG MSG(TAPM000)"                                                05860000
+   CRSRFLD = "HBILDD"                                                   05870000
+   SIGNAL "REDISPLAY"                                                   05880000
+END                                                                     05890000
+/*                                        */                            05900000
+LPACMM = (POS(LPACMMM,MTHSALPHA) - 1) / 3 + 1                           05910000
+IF LPACDD > MAXDAY.LPACMM THEN DO                                       05920000
+   "SETMSG MSG(TAPM000)"                                                05930000
+   CRSRFLD = "LPACDD"                                                   05940000
+   SIGNAL "REDISPLAY"                                                   05950000
+END                                                                     05960000
+/*                                        */                            05970000
+HPACMM = (POS(HPACMMM,MTHSALPHA) - 1) / 3 + 1                           05980000
+IF HPACDD > MAXDAY.HPACMM THEN DO                                       05990000
+   "SETMSG MSG(TAPM000)"                                                06000000
+   CRSRFLD = "HPACDD"                                                   06010000
+   SIGNAL "REDISPLAY"                                                   06020000
+END                                                                     06030000
+/*                                        */                            06040000
+HANNMM = (POS(HANNMMM,MTHSALPHA) - 1) / 3 + 1                           06050000
+IF HANNDD > MAXDAY.HANNMM THEN DO                                       06060000
+   "SETMSG MSG(TAPM000)"                                                06070000
+   CRSRFLD = "HANNDD"                                                   06080000
+   SIGNAL "REDISPLAY"                                                   06090000
+END                                                                     06100000
+/*                                        */                            06110000
+HCLMMM = (POS(HCLMMMM,MTHSALPHA) - 1) / 3 + 1                           06120000
+IF HCLMDD > MAXDAY.HCLMMM THEN DO                                       06130000
+   "SETMSG MSG(TAPM000)"                                                06140000
+   CRSRFLD = "HCLMDD"                                                   06150000
+   SIGNAL "REDISPLAY"                                                   06160000
+END                                                                     06170000
+/*                                        */                            06180000
+/* PAC AND EFT TAPE COUNTERS              */                            06190000
+/*                                        */                            06200000
+IF PAC_DONE_ONCE ^= "Y" THEN DO                                         06210000
+   PAC_DONE_ONCE = "Y"                                                  06220000
+   IF RETAIN_ORIG = "Y" THEN DO                                         06230000
+      IF PACTAPEC ^= PACTAPEC_ORIG THEN DO                              06240000
+         "SETMSG MSG(TAPM010)"                                          06250000
+         CRSRFLD = "PACTAPEC"                                           06260000
+         SIGNAL "REDISPLAY"                                             06270000
+      END                                                               06280000
+   END                                                                  06290000
+   ELSE DO                                                              06300000
+      IF LPACNONE = "NONE" & PACTAPEC ^= PACTAPEC_ORIG THEN DO          06310000
+         "SETMSG MSG(TAPM010)"                                          06320000
+         CRSRFLD = "PACTAPEC"                                           06330000
+         SIGNAL "REDISPLAY"                                             06340000
+      END                                                               06350000
+      IF LPACNONE ^= "NONE" & PACTAPEC ^= PACTAPEC_ORIG + 1 THEN DO     06360000
+         "SETMSG MSG(TAPM010)"                                          06370000
+         CRSRFLD = "PACTAPEC"                                           06380000
+         SIGNAL "REDISPLAY"                                             06390000
+      END                                                               06400000
+   END                                                                  06410000
+END                                                                     06420000
+IF EFT_DONE_ONCE ^= "Y" THEN DO                                         06430000
+   EFT_DONE_ONCE = "Y"                                                  06440000
+   IF RETAIN_ORIG = "Y" THEN DO                                         06450000
+      IF EFTTAPEC ^= EFTTAPEC_ORIG THEN DO                              06460000
+         "SETMSG MSG(TAPM010)"                                          06470000
+         CRSRFLD = "EFTTAPEC"                                           06480000
+         SIGNAL "REDISPLAY"                                             06490000
+      END                                                               06500000
+   END                                                                  06510000
+   ELSE DO                                                              06520000
+      IF HANNNONE = "NONE" & EFTTAPEC ^= EFTTAPEC_ORIG THEN DO          06530000
+         "SETMSG MSG(TAPM010)"                                          06540000
+         CRSRFLD = "EFTTAPEC"                                           06550000
+         SIGNAL "REDISPLAY"                                             06560000
+      END                                                               06570000
+      IF HANNNONE ^= "NONE" & EFTTAPEC ^= EFTTAPEC_ORIG + 1 THEN DO     06580000
+         "SETMSG MSG(TAPM010)"                                          06590000
+         CRSRFLD = "EFTTAPEC"                                           06600000
+         SIGNAL "REDISPLAY"                                             06610000
+      END                                                               06620000
+   END                                                                  06630000
+END                                                                     06640000
+IF CRC_DONE_ONCE ^= "Y" THEN DO                                         06650000
+   CRC_DONE_ONCE = "Y"                                                  06660000
+   IF RETAIN_ORIG = "Y" THEN DO                                         06670000
+      IF CRCTAPEC ^= CRCTAPEC_ORIG THEN DO                              06680000
+         "SETMSG MSG(TAPM010)"                                          06690000
+         CRSRFLD = "CRCTAPEC"                                           06700000
+         SIGNAL "REDISPLAY"                                             06710000
+      END                                                               06720000
+   END                                                                  06730000
+   ELSE DO                                                              06740000
+      IF LPACNONE = "NONE" & CRCTAPEC ^= CRCTAPEC_ORIG THEN DO          06750000
+         "SETMSG MSG(TAPM010)"                                          06760000
+         CRSRFLD = "CRCTAPEC"                                           06770000
+         SIGNAL "REDISPLAY"                                             06780000
+      END                                                               06790000
+      IF LPACNONE ^= "NONE" & CRCTAPEC ^= CRCTAPEC_ORIG + 1 THEN DO     06800000
+         "SETMSG MSG(TAPM010)"                                          06810000
+         CRSRFLD = "CRCTAPEC"                                           06820000
+         SIGNAL "REDISPLAY"                                             06830000
+      END                                                               06840000
+   END                                                                  06850000
+END                                                                     06860000
+/*                                        */                            06930000
+/*----------------------------------------*/                            06940000
+/* PART 4: PAD VALUES WHERE REQUIRED      */                            06950000
+/*----------------------------------------*/                            06960000
+DATXDD = RIGHT(DATXDD,2,"0")                                            06970000
+NXWKDD = RIGHT(NXWKDD,2,"0")                                            06980000
+CAUTDD = RIGHT(CAUTDD,2,"0")                                            06990000
+CLSTDD = RIGHT(CLSTDD,2,"0")                                            07000000
+STYRDD = RIGHT(STYRDD,2,"0")                                            07010000
+CMTHMM = RIGHT(CMTHMM,2,"0")                                            07020000
+CYERYYYY = RIGHT(CYERYYYY,4,"0")                                        07030000
+/*                                        */                            07040000
+IF LBILDD ^= "" THEN LBILDD = RIGHT(LBILDD,2,"0")                       07050000
+IF HBILDD ^= "" THEN HBILDD = RIGHT(HBILDD,2,"0")                       07060000
+IF LPACDD ^= "" THEN LPACDD = RIGHT(LPACDD,2,"0")                       07070000
+IF HPACDD ^= "" THEN HPACDD = RIGHT(HPACDD,2,"0")                       07080000
+IF HANNDD ^= "" THEN HANNDD = RIGHT(HANNDD,2,"0")                       07090000
+IF HCLMDD ^= "" THEN HCLMDD = RIGHT(HCLMDD,2,"0")                       07100000
+PACTAPEC = RIGHT(PACTAPEC,4,"0")                                        07110000
+EFTTAPEC = RIGHT(EFTTAPEC,4,"0")                                        07120000
+CRCTAPEC = RIGHT(CRCTAPEC,4,"0")                                        07130000
+CRCFLAG  = RIGHT(CRCFLAG,1,"0")                                         07131000
+ENXMDD = RIGHT(ENXMDD,2,"0")                                            07140000
+/*----------------------------------------*/                            07150000
+/* PART 5: STORE VALUES                   */                            07160000
+/*----------------------------------------*/                            07170000
+"VPUT (DATXDD DATXMMM DATXYYYY NXWKDD NXWKMMM NXWKYYYY",                07180000
+      "CAUTDD CAUTMMM CAUTYYYY CLSTDD CLSTMMM CLSTYYYY",                07190000
+      "STYRDD STYRMMM STYRYYYY CMTHMM CYERYYYY",                        07200000
+      "PACTAPEC PACTAPEF EFTTAPEC EFTTAPEF",                            07210000
+      "CRCTAPEC CRCTAPEF CRCFLAG",                                      07220000
+      "EMTHDD EMTHMMM EMTHYYYY",                                        07230000
+      "SMTHDD SMTHMMM SMTHYYYY",                                        07230100
+      "SQTRDD SQTRMMM SQTRYYYY",                                        07230200
+      "ENXMDD ENXMMMM ENXMYYYY)"                                        07231000
+"VPUT (LBILDD LBILMMM LBILYYYY LBILNONE",                               07240000
+      "HBILDD HBILMMM HBILYYYY HBILNONE",                               07250000
+      "LPACDD LPACMMM LPACYYYY LPACNONE",                               07260000
+      "HPACDD HPACMMM HPACYYYY HPACNONE",                               07270000
+      "HANNDD HANNMMM HANNYYYY HANNNONE",                               07280000
+      "HCLMDD HCLMMMM HCLMYYYY HCLMNONE)"                               07290000
+/*                                       */                             07300000
+EXIT:                                                                   07310000
+EXIT RETURN_CODE                                                        07320000
+/*----------------------------------------*/                            07330000
+/* CALLED PROCEDURES                      */                            07340000
+/*----------------------------------------*/                            07350000
+/*                                        */                            07360000
+/* CALCULATE THE NEXT WORKING DATE        */                            07370000
+/*                                        */                            07380000
+NEXT_WORKDAY:                                                           07390000
+WORKMM = (POS(WORKMMM,MTHSALPHA) - 1) / 3 + 1                           07400000
+IF WORKWKDY < 4 THEN             /* WKDY: 0=MON, 1=TUE, 2=WED, 3=THU */ 07410000
+   DAYS_TO_NXT_WORKDAY = 1       /*       4=FRI, 5=SAT, 6=SUN        */ 07420000
+ELSE                                                                    07430000
+   DAYS_TO_NXT_WORKDAY = 7 - WORKWKDY                                   07440000
+WORKWKDY = WORKWKDY + DAYS_TO_NXT_WORKDAY                               07450000
+IF WORKWKDY > 6 THEN WORKWKDY = WORKWKDY - 7                            07460000
+WORKDD = WORKDD + DAYS_TO_NXT_WORKDAY                                   07470000
+IF WORKDD > MAXDAY.WORKMM THEN DO                                       07480000
+   WORKDD = WORKDD - MAXDAY.WORKMM                                      07490000
+   WORKMM = WORKMM + 1                                                  07500000
+   IF WORKMM > 12 THEN DO                                               07510000
+      WORKMM = 1                                                        07520000
+      WORKYYYY = WORKYYYY + 1                                           07530000
+   END                                                                  07540000
+   WORKMMM = MTHALPHA.WORKMM                                            07550000
+END                                                                     07560000
+/*                                       */                             07570000
+/* CHECK FOR HOLIDAYS                    */                             07580000
+/*                                       */                             07590000
+IF HOLI_MAX > 0 THEN DO                                                 07601000
+   DO J = 1 TO HOLI_MAX                                                 07610000
+      IF HOLI_YR.J = WORKYYYY & HOLI_MO.J = WORKMM & HOLI_DY.J = WORKDD 07620000
+      THEN DO                                                           07630000
+         IF WORKWKDY < 4 THEN                                           07640000
+            DAYS_TO_NXT_WORKDAY = 1                                     07650000
+         ELSE                                                           07660000
+            DAYS_TO_NXT_WORKDAY = 7 - WORKWKDY                          07670000
+         WORKWKDY = WORKWKDY + DAYS_TO_NXT_WORKDAY                      07680000
+         IF WORKWKDY > 6 THEN WORKWKDY = WORKWKDY - 7                   07690000
+         WORKDD = WORKDD + DAYS_TO_NXT_WORKDAY                          07700000
+         IF WORKDD > MAXDAY.WORKMM THEN DO                              07710000
+            WORKDD = WORKDD - MAXDAY.WORKMM                             07720000
+            WORKMM = WORKMM + 1                                         07730000
+            IF WORKMM > 12 THEN DO                                      07740000
+               WORKMM = 1                                               07750000
+               WORKYYYY = WORKYYYY + 1                                  07760000
+            END                                                         07770000
+            WORKMMM = MTHALPHA.WORKMM                                   07780000
+         END                                                            07790000
+      END                                                               07800000
+   END                                                                  07810000
+END                                                                     07820000
+/*                                       */                             07830000
+RETURN                                                                  07840000
+/*                                        */                            07850000
+/* CALCULATE THE NEXT PAC DEPOSIT DATE    */                            07860000
+/*                                        */                            07870000
+NEXT_PACDATE:                                                           07880000
+DEPMM   = (POS(DEPMMM,MTHSALPHA) - 1) / 3 + 1                           07890000
+WORKMM  = (POS(WORKMMM,MTHSALPHA) - 1) / 3 + 1                          07891016
+SELECT                                                                  07900000
+   WHEN DEPDD > 28 THEN DO                                              07910000
+                         DEPDD = "01"                                   07920000
+                         DEPMM = DEPMM + 1                              07930000
+                         IF DEPMM > 12 THEN DO                          07940000
+                            DEPMM = 1                                   07950000
+                            DEPYYYY = DEPYYYY + 1                       07960000
+                         END                                            07970000
+                    END                                                 07980000
+   OTHERWISE                                                            07981000
+        DEPDD = WORKDD + 1                                              07990000
+         IF DEPDD > MAXDAY.WORKMM THEN DO                               07991022
+            DEPDD = DEPDD - MAXDAY.WORKMM                               07992022
+            DEPMM = DEPMM + 1                                           07993009
+            IF DEPMM > 12 THEN DO                                       07994000
+               DEPMM = 1                                                07995000
+               DEPYYYY = DEPYYYY + 1                                    07996009
+            END                                                         07997000
+         END                                                            07999000
+         ELSE                                                           07999102
+         DEPMM=WORKMM                                                   07999202
+         DEPYYYY=WORKYYYY                                               07999303
+END                                                                     08000000
+/* DOUG CHAPMAN ADDED THE FOLLOWING ONE LINE - JULY 26, 2003 */         08050000
+DEPDD = RIGHT(DEPDD,2,"0")                                              08050100
+DEPMMM = RIGHT(DEPMM,2,"0")                                             08051000
+DEPDATE = DEPYYYY||DEPMMM||DEPDD                                        08060000
+DEPMMM = MTHALPHA.DEPMM                                                 08070000
+/*                                       */                             08080000
+RETURN                                                                  08090000
+/*                                        */                            08100000
+/* CALCULATE THE NEXT ANN DEPOSIT DATE    */                            08110000
+/*                                        */                            08120000
+NEXT_ANNDATE:                                                           08130000
+DEPMM   = (POS(DEPMMM,MTHSALPHA) - 1) / 3 + 1                           08140000
+SELECT                                                                  08150000
+   WHEN DEPDD > 24 THEN DO                                              08160000
+                         DEPDD = "01"                                   08170000
+                         DEPMM = DEPMM + 1                              08180000
+                         IF DEPMM > 12 THEN DO                          08190000
+                            DEPMM = 1                                   08200000
+                            DEPYYYY = DEPYYYY + 1                       08210000
+                         END                                            08220000
+                    END                                                 08230000
+   WHEN DEPDD > 14 THEN  DEPDD = "25"                                   08240000
+   WHEN DEPDD > 09 THEN  DEPDD = "15"                                   08250000
+   OTHERWISE             DEPDD = "10"                                   08260000
+END                                                                     08270000
+DEPMMM = RIGHT(DEPMM,2,"0")                                             08280000
+DEPDATE = DEPYYYY||DEPMMM||DEPDD                                        08290000
+DEPMMM = MTHALPHA.DEPMM                                                 08300000
+/*                                       */                             08310000
+RETURN                                                                  08320000

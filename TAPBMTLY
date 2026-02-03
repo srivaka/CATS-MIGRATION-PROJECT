@@ -1,0 +1,85 @@
+/*REXX*/                                                                        
+ADDRESS "ISPEXEC"                                                               
+"CONTROL ERRORS RETURN"                                                         
+/*---------------------------------------*/                                     
+/* OBSOLETE CLIST TO UPDATE BI-MONTHLY   */                                     
+/* PARMS AS PANEL SELECTIONS 4 & 5       */                                     
+/*                                       */                                     
+/* PART 1: INITIALIZATION                */                                     
+/*---------------------------------------*/                                     
+RETURN_CODE = 0                                                                 
+/*                                       */                                     
+/* GET GLOBALS                           */                                     
+/*                                       */                                     
+"VGET (CURRWKDY CURRDD CURRMMM CURRYYYY PANSEL ENVIR WKDY TAPDSN)"              
+"VGET (DATXDD DATXMMM DATXYYYY)"                                                
+/*                                       */                                     
+/* SET UP TABLE OF MAX DAYS PER MONTH    */                                     
+/*                                       */                                     
+MAXDAYS = "312831303130313130313031"                                            
+/*                                       */                                     
+DO I = 1 TO 12                                                                  
+   PARSE VAR MAXDAYS MAXDAY.I 3 MAXDAYS                                         
+END                                                                             
+/*                                       */                                     
+/* SET UP ALPHA MONTH TABLE              */                                     
+/*                                       */                                     
+MTHSALPHA = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC"                              
+DO I = 1 TO 12                                                                  
+   MTHALPHA.I = SUBSTR(MTHSALPHA,(I - 1) * 3 + 1,3)                             
+END                                                                             
+/*                                       */                                     
+/* DEFAULT THE NEXT MONTH END DATE       */                                     
+/*                                       */                                     
+ENXMYYYY = DATXYYYY                                                             
+EMTHMM = (POS(DATXMMM,MTHSALPHA) - 1) / 3 + 1 + 1                               
+IF EMTHMM > 12 THEN DO                                                          
+   EMTHMM = 1                                                                   
+   ENXMYYYY = ENXMYYYY + 1                                                      
+END                                                                             
+ENXMMMM  = MTHALPHA.EMTHMM                                                      
+ENXMDD   = MAXDAY.EMTHMM                                                        
+/*---------------------------------------*/                                     
+/* PART 2: BRING UP THE BI-MONTHLY PANEL */                                     
+/*---------------------------------------*/                                     
+CRSRFLD = "ENXMDD"                                                              
+REDISPLAY:                                                                      
+"DISPLAY PANEL(TAPPBMTH)"                                                       
+IF RC ^= 0 THEN DO                                                              
+   "SETMSG MSG(TAPM006)"                                                        
+   RETURN_CODE = 1                                                              
+   SIGNAL "EXIT"                                                                
+END                                                                             
+/*----------------------------------------*/                                    
+/* PART 3: EDITING NOT DONE IN PANEL      */                                    
+/*----------------------------------------*/                                    
+/*                                        */                                    
+/* DAY OF THE MONTH                       */                                    
+/*                                        */                                    
+DATXMM = (POS(DATXMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF DATXDD > MAXDAY.DATXMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "DATXDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+EMTHMM = (POS(ENXMMMM,MTHSALPHA) - 1) / 3 + 1                                   
+IF ENXMDD > MAXDAY.EMTHMM THEN DO                                               
+   "SETMSG MSG(TAPM000)"                                                        
+   CRSRFLD = "ENXMDD"                                                           
+   SIGNAL "REDISPLAY"                                                           
+END                                                                             
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/* PART 4: PAD VALUES WHERE REQUIRED      */                                    
+/*----------------------------------------*/                                    
+DATXDD = RIGHT(DATXDD,2,"0")                                                    
+ENXMDD = RIGHT(ENXMDD,2,"0")                                                    
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/* PART 5: STORE VALUES                   */                                    
+/*----------------------------------------*/                                    
+"VPUT (DATXDD DATXMMM DATXYYYY",                                                
+      "ENXMDD ENXMMMM ENXMYYYY)"                                                
+EXIT:                                                                           
+EXIT RETURN_CODE                                                                

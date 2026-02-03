@@ -1,0 +1,121 @@
+/*REXX*/                                                                        
+ADDRESS "ISPEXEC"                                                               
+"CONTROL ERRORS RETURN"                                                         
+/*---------------------------------------*/                                     
+/* PART 1: INITIALIZATION                */                                     
+/*---------------------------------------*/                                     
+RETURN_CODE = 0                                                                 
+/*                                       */                                     
+/* GET GLOBALS                           */                                     
+/*                                       */                                     
+"VGET (CURRWKDY CURRDD CURRMMM CURRYYYY REQSEL ENVIR WKDY TAPDSN)"              
+/*                                       */                                     
+/* SET UP TABLE OF MAX DAYS PER MONTH    */                                     
+/*                                       */                                     
+MAXDAYS = "312831303130313130313031"                                            
+DO I = 1 TO 12                                                                  
+   PARSE VAR MAXDAYS MAXDAY.I 3 MAXDAYS                                         
+END                                                                             
+/*                                       */                                     
+/* SET UP ALPHA MONTH TABLE              */                                     
+/*                                       */                                     
+MTHSALPHA = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC"                              
+DO I = 1 TO 12                                                                  
+   MTHALPHA.I = SUBSTR(MTHSALPHA,(I - 1) * 3 + 1,3)                             
+END                                                                             
+/*                                       */                                     
+/* DEFAULT THE MICR NUMBER RANGES        */                                     
+/*                                       */                                     
+MICRS01  = "00000000"                                                           
+MICRE01  = "00000000"                                                           
+MICRS02  = "00000000"                                                           
+MICRE02  = "00000000"                                                           
+MICRS03  = "00000000"                                                           
+MICRE03  = "00000000"                                                           
+MICRS04  = "00000000"                                                           
+MICRE04  = "00000000"                                                           
+MICRS05  = "00000000"                                                           
+MICRE05  = "00000000"                                                           
+MICRS06  = "00000000"                                                           
+MICRE06  = "00000000"                                                           
+MICRS07  = "00000000"                                                           
+MICRE07  = "00000000"                                                           
+MICRS08  = "00000000"                                                           
+MICRE08  = "00000000"                                                           
+MICRS09  = "00000000"                                                           
+MICRE09  = "00000000"                                                           
+MICRS10  = "00000000"                                                           
+MICRE10  = "00000000"                                                           
+MICRS11  = "00000000"                                                           
+MICRE11  = "00000000"                                                           
+MICRS12  = "00000000"                                                           
+MICRE12  = "00000000"                                                           
+MICRS13  = "00000000"                                                           
+MICRE13  = "00000000"                                                           
+MICRS14  = "00000000"                                                           
+MICRE14  = "00000000"                                                           
+MICRS15  = "00000000"                                                           
+MICRE15  = "00000000"                                                           
+/*---------------------------------------*/                                     
+/* PART 2: BRING UP THE REQUEST PANEL    */                                     
+/*---------------------------------------*/                                     
+CRSRFLD = "MICRS01"                                                             
+REDISPLAY:                                                                      
+"DISPLAY PANEL(TAPPREQ2)"                                                       
+IF RC ^= 0 THEN DO                                                              
+   "SETMSG MSG(TAPM006)"                                                        
+   RETURN_CODE = 1                                                              
+   SIGNAL "EXIT"                                                                
+END                                                                             
+/*----------------------------------------*/                                    
+/* PART 3: EDITING NOT DONE IN PANEL      */                                    
+/*----------------------------------------*/                                    
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/* PART 4: PAD VALUES WHERE REQUIRED      */                                    
+/*----------------------------------------*/                                    
+MICRS01 = RIGHT(MICRS01,8,"0")                                                  
+MICRE01 = RIGHT(MICRE01,8,"0")                                                  
+MICRS02 = RIGHT(MICRS02,8,"0")                                                  
+MICRE02 = RIGHT(MICRE02,8,"0")                                                  
+MICRS03 = RIGHT(MICRS03,8,"0")                                                  
+MICRE03 = RIGHT(MICRE03,8,"0")                                                  
+MICRS04 = RIGHT(MICRS04,8,"0")                                                  
+MICRE04 = RIGHT(MICRE04,8,"0")                                                  
+MICRS05 = RIGHT(MICRS05,8,"0")                                                  
+MICRE05 = RIGHT(MICRE05,8,"0")                                                  
+MICRS06 = RIGHT(MICRS06,8,"0")                                                  
+MICRE06 = RIGHT(MICRE06,8,"0")                                                  
+MICRS07 = RIGHT(MICRS07,8,"0")                                                  
+MICRE07 = RIGHT(MICRE07,8,"0")                                                  
+MICRS08 = RIGHT(MICRS08,8,"0")                                                  
+MICRE08 = RIGHT(MICRE08,8,"0")                                                  
+MICRS09 = RIGHT(MICRS09,8,"0")                                                  
+MICRE09 = RIGHT(MICRE09,8,"0")                                                  
+MICRS10 = RIGHT(MICRS10,8,"0")                                                  
+MICRE10 = RIGHT(MICRE10,8,"0")                                                  
+MICRS11 = RIGHT(MICRS11,8,"0")                                                  
+MICRE11 = RIGHT(MICRE11,8,"0")                                                  
+MICRS12 = RIGHT(MICRS12,8,"0")                                                  
+MICRE12 = RIGHT(MICRE12,8,"0")                                                  
+MICRS13 = RIGHT(MICRS13,8,"0")                                                  
+MICRE13 = RIGHT(MICRE13,8,"0")                                                  
+MICRS14 = RIGHT(MICRS14,8,"0")                                                  
+MICRE14 = RIGHT(MICRE14,8,"0")                                                  
+MICRS15 = RIGHT(MICRS15,8,"0")                                                  
+MICRE15 = RIGHT(MICRE15,8,"0")                                                  
+/*                                        */                                    
+/*----------------------------------------*/                                    
+/* PART 5: STORE VALUES                   */                                    
+/*----------------------------------------*/                                    
+"VPUT (MICRS01 MICRE01 MICRS02 MICRE02 MICRS03 MICRE03",                        
+      "MICRS04 MICRE04 MICRS05 MICRE05 MICRS06 MICRE06",                        
+      "MICRS07 MICRE07 MICRS08 MICRE08 MICRS09 MICRE09",                        
+      "MICRS10 MICRE10 MICRS11 MICRE11 MICRS12 MICRE12",                        
+      "MICRS13 MICRE13 MICRS14 MICRE14 MICRS15 MICRE15",                        
+/*----------------------------------------*/                                    
+/* PART 6: RUN EXEC TO UPDATE PARMS       */                                    
+/*----------------------------------------*/                                    
+ADDRESS TSO "%TAPUPDT"                                                          
+EXIT:                                                                           
+EXIT RETURN_CODE                                                                

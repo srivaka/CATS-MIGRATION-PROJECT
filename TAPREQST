@@ -1,0 +1,70 @@
+/*REXX*/                                                                        
+ADDRESS "ISPEXEC"                                                               
+"CONTROL ERRORS RETURN"                                                         
+/*---------------------------------------*/                                     
+/* NOT EXECUTED IN BATCH MODE            */                                     
+/*---------------------------------------*/                                     
+/* PART 1: INITIALIZATION                */                                     
+/*---------------------------------------*/                                     
+/*                                       */                                     
+/* GET GLOBALS                           */                                     
+/*                                       */                                     
+"VGET (CURRWKDY CURRDD CURRMMM CURRYYYY PANSEL COMPANY",                        
+      "ENVIR WKDY TAPDSN ZPREFIX)"                                              
+/*                                       */                                     
+/* DETERMINE OUTPUT LEADCARD FILE        */                                     
+/*                                       */                                     
+/*                                       */                                     
+SELECT                                                                          
+  WHEN COMPANY = "ZI" THEN                                                      
+       SELECT                                                                   
+         WHEN ENVIR = "P" THEN                                                  
+              TAPDSN = "PCL.LEADCARD.DATA"                                      
+         OTHERWISE                                                              
+              TAPDSN = ZPREFIX||"."||COMPANY||".LEADCARD.DATA"                  
+       END                                                                      
+  OTHERWISE                                                                     
+       TAPDSN = ZPREFIX||"."||COMPANY||".LEADCARD.DATA"                         
+END                                                                             
+/*                                       */                                     
+/* SET UP TABLE OF MAX DAYS PER MONTH    */                                     
+/*                                       */                                     
+MAXDAYS = "312831303130313130313031"                                            
+/*                                       */                                     
+/* CAPS-I-L DOES NOT SUPPORT LEAP YEARS  */                                     
+DO I = 1 TO 12                                                                  
+   PARSE VAR MAXDAYS MAXDAY.I 3 MAXDAYS                                         
+END                                                                             
+/*                                       */                                     
+/* SET UP ALPHA MONTH TABLE              */                                     
+/*                                       */                                     
+MTHSALPHA = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC"                              
+DO I = 1 TO 12                                                                  
+   MTHALPHA.I = SUBSTR(MTHSALPHA,(I - 1) * 3 + 1,3)                             
+END                                                                             
+/*                                       */                                     
+/* RECALC WKDY IN CASE IT WAS CHANGED    */                                     
+/*                                       */                                     
+SELECT                                                                          
+  WHEN CURRWKDY = 'MON' THEN WKDY = 0                                           
+  WHEN CURRWKDY = 'TUE' THEN WKDY = 1                                           
+  WHEN CURRWKDY = 'WED' THEN WKDY = 2                                           
+  WHEN CURRWKDY = 'THU' THEN WKDY = 3                                           
+  WHEN CURRWKDY = 'FRI' THEN WKDY = 4                                           
+  WHEN CURRWKDY = 'SAT' THEN WKDY = 5                                           
+  WHEN CURRWKDY = 'SUN' THEN WKDY = 6                                           
+  OTHERWISE NOP                                                                 
+END                                                                             
+/*                                       */                                     
+/* SUGGEST AN OPTION                     */                                     
+/*                                       */                                     
+REQSEL = "1"                                                                    
+/*                                       */                                     
+"VPUT (TAPDSN ENVIR WKDY REQSEL)"                                               
+/*----------------------------------------*/                                    
+/* PART 2: SELECT REQUEST MENU PANEL      */                                    
+/*----------------------------------------*/                                    
+"ISPEXEC SELECT PANEL(TAPPREQ)"                                                 
+SIGNAL "EXIT"                                                                   
+EXIT:                                                                           
+EXIT                                                                            
